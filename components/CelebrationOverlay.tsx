@@ -6,7 +6,7 @@ import { formatPrettyDateTime } from "@/lib/time";
 
 import { useBoard } from "./BoardProvider";
 
-const COLORS = ["#E31837", "#ffffff", "#1A1D21", "#F5C451", "#ffd0d6", "#B10F28"];
+const COLORS = ["#0096D6", "#0077C0", "#005288", "#ffffff", "#E9B632", "#7ec8ee"];
 
 type Particle = {
   x: number;
@@ -34,7 +34,7 @@ function makeBurst(width: number, height: number): Particle[] {
       vy: Math.sin(angle) * speed,
       rot: Math.random() * Math.PI,
       vr: (Math.random() - 0.5) * 0.28,
-      color: COLORS[Math.floor(Math.random() * COLORS.length)] ?? "#E31837",
+      color: COLORS[Math.floor(Math.random() * COLORS.length)] ?? "#0077C0",
       gravity: 0.11 + Math.random() * 0.08,
     };
   });

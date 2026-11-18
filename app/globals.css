@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --express: #e31837;
-  --express-dark: #b10f28;
-  --express-deep: #8d0e21;
+  --express: #0077c0;
+  --express-bright: #0096d6;
+  --express-dark: #005288;
+  --express-deep: #003e66;
   --charcoal: #1a1d21;
   --ink: #1c1c1c;
   --slate: #5c6570;
@@ -74,7 +75,7 @@ a { color: var(--express); }
   position: sticky;
   top: 0;
   z-index: 30;
-  box-shadow: 0 10px 28px rgba(142, 14, 34, 0.28);
+  box-shadow: 0 10px 28px rgba(0, 82, 136, 0.32);
 }
 
 .header-inner {
@@ -177,13 +178,13 @@ a { color: var(--express); }
 .btn:disabled { opacity: 0.55; cursor: wait; }
 .btn-primary { background: var(--express); color: white; }
 .btn-primary:hover { background: var(--express-dark); }
-.btn-on-red {
+.btn-on-blue {
   background: rgba(255, 255, 255, 0.12);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.28);
   padding: 8px 12px;
 }
-.btn-on-red:hover { background: rgba(255, 255, 255, 0.22); }
+.btn-on-blue:hover { background: rgba(255, 255, 255, 0.22); }
 .btn-ghost { background: white; color: var(--charcoal); border: 1px solid var(--line); }
 .btn-ghost:hover { border-color: #c5cad3; }
 .btn-danger { background: var(--charcoal); color: white; }
@@ -197,7 +198,7 @@ a { color: var(--express); }
   font-size: 1.7rem;
   font-weight: 800;
   letter-spacing: 0.03em;
-  box-shadow: 0 10px 22px rgba(227, 24, 55, 0.28);
+  box-shadow: 0 10px 22px rgba(0, 119, 192, 0.32);
 }
 .btn-fill:hover { background: var(--express-dark); }
 .icon-btn { width: 42px; padding-inline: 0; font-size: 1.3rem; }
@@ -296,7 +297,7 @@ a { color: var(--express); }
 .card-left span { color: var(--slate); font-weight: 700; }
 
 .progress { height: 10px; border-radius: 99px; background: #eceff3; overflow: hidden; }
-.progress span { display: block; height: 100%; background: linear-gradient(90deg, var(--express) 0%, #ff5a72 100%); border-radius: inherit; }
+.progress span { display: block; height: 100%; background: linear-gradient(90deg, var(--express-dark) 0%, var(--express-bright) 100%); border-radius: inherit; }
 .progress-label, .compact-meta, .compact-foot { margin: 0; color: var(--slate); font-weight: 650; }
 .compact-foot strong, .score-sub, .score-open { color: white; }
 

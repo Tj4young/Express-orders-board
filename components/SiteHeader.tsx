@@ -44,7 +44,7 @@ export function SiteHeader({ active }: { active: NavKey }) {
             {loading ? "Loading" : online ? "Live" : "Reconnecting"}
           </span>
           <button
-            className="btn btn-on-red"
+            className="btn btn-on-blue"
             type="button"
             aria-pressed={soundOn}
             onClick={() => setSoundOn(!soundOn)}
@@ -53,12 +53,12 @@ export function SiteHeader({ active }: { active: NavKey }) {
             {soundOn ? "Sound on" : "Sound off"}
           </button>
           {unlocked ? (
-            <button className="btn btn-on-red" type="button" onClick={lock}>
+            <button className="btn btn-on-blue" type="button" onClick={lock}>
               <IconLock open />
               Lock
             </button>
           ) : (
-            <button className="btn btn-on-red" type="button" onClick={openUnlock} data-testid="unlock">
+            <button className="btn btn-on-blue" type="button" onClick={openUnlock} data-testid="unlock">
               <IconLock open={false} />
               Unlock
             </button>
