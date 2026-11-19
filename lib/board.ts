@@ -239,6 +239,7 @@ export function updateOrder(state: BoardState, orderId: string, input: OrderInpu
   order.recruiterId = input.recruiterId;
   order.dateOpened = input.dateOpened;
   order.notes = input.notes;
+  order.logo = input.logo;
   order.updatedAt = clock.now.toISOString();
   syncFills(next, order, clock.now, clock.id);
   const celebration = finishIfNeeded(next, order, wasComplete, clock.now, clock.id);
