@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { placementBreakdown } from "@/lib/credit";
 import { matchesFilters, sortOrders, spotsLeft, type SortKey } from "@/lib/filters";
 import { OFFICES } from "@/lib/offices";
 import { formatRate, plural, scoreBoard } from "@/lib/scoring";
@@ -17,7 +18,7 @@ import { WinCard } from "./WinCard";
 
 export function OfficeBoard({ office }: { office: OfficeId }) {
   const board = useBoard();
-  const { state, now, unlocked, openOrder, openRecruiters, openUnlock, fillOne, undoFill, deleteOrder, addExample, pendingId, loadError, loading, online, celebration } = board;
+  const { state, now, unlocked, openOrder, openRecruiters, openPlace, openUnlock, undoFill, deleteOrder, addExample, pendingId, loadError, loading, online, celebration } = board;
   const [recruiterId, setRecruiterId] = useState("all");
   const [shift, setShift] = useState("all");
   const [sort, setSort] = useState<SortKey>("oldest");
@@ -202,11 +203,12 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
                 key={order.id}
                 order={order}
                 recruiterName={nameFor(order.recruiterId)}
+                credit={state ? placementBreakdown(state, order.id) : ""}
                 today={today}
                 readOnly={!unlocked}
                 exiting={ghosts.some((ghost) => ghost.id === order.id)}
                 pending={pendingId === order.id}
-                onFill={() => void fillOne(order)}
+                onFill={() => openPlace(order)}
                 onUndo={() => void undoFill(order.id)}
                 onEdit={() => openOrder(order, order.office)}
                 onDelete={() => void deleteOrder(order.id)}
@@ -229,6 +231,7 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
                   key={order.id}
                   order={order}
                   recruiterName={nameFor(order.recruiterId)}
+                  credit={state ? placementBreakdown(state, order.id) : ""}
                   fresh={celebration?.orderId === order.id || isFresh(order, now)}
                   unlocked={unlocked}
                   pending={pendingId === order.id}

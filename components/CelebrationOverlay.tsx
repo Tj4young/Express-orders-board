@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { formatNameList } from "@/lib/credit";
 import { formatPrettyDateTime } from "@/lib/time";
 
 import { useBoard } from "./BoardProvider";
@@ -129,7 +130,8 @@ export function CelebrationOverlay() {
           🎉 {celebration.officeName} filled {celebration.position} at {celebration.client}!
         </h2>
         <p className="celebration-sub">
-          {celebration.recruiterName} · {formatPrettyDateTime(celebration.at)}
+          Placed by {formatNameList(celebration.contributors?.length ? celebration.contributors : [celebration.recruiterName])} ·{" "}
+          {formatPrettyDateTime(celebration.at)}
         </p>
         <div className="celebration-actions">
           {unlocked && (

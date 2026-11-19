@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { placementBreakdown } from "@/lib/credit";
 import { matchesFilters, sortOrders, spotsLeft, type SortKey } from "@/lib/filters";
 import { OFFICE_IDS, OFFICES } from "@/lib/offices";
 import { formatRate, plural, scoreBoard, type OfficeScore } from "@/lib/scoring";
@@ -119,7 +120,13 @@ export function BattleView() {
                           <p className="quiet">No open orders. The desk is clear.</p>
                         ) : (
                           orders.map((order) => (
-                            <CompactOrder key={order.id} order={order} recruiterName={nameFor(order.recruiterId)} today={today} />
+                            <CompactOrder
+                              key={order.id}
+                              order={order}
+                              recruiterName={nameFor(order.recruiterId)}
+                              credit={placementBreakdown(state, order.id)}
+                              today={today}
+                            />
                           ))
                         )}
                       </div>

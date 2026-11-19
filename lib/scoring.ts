@@ -1,3 +1,4 @@
+import { contributorNames, formatNameList } from "./credit";
 import { OFFICES } from "./offices";
 import {
   currentPeriods,
@@ -126,7 +127,7 @@ export function scoreBoard(state: BoardState, now: Date): Scoreboard {
       officeName: OFFICES[order.office].name,
       client: order.client,
       position: order.position,
-      recruiterName: state.recruiters.find((recruiter) => recruiter.id === order.recruiterId)?.name ?? "Team",
+      recruiterName: formatNameList(contributorNames(state, order.id)),
       at: order.dateFilled as string,
     }));
 

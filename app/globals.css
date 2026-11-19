@@ -299,6 +299,18 @@ a { color: var(--express); }
 .progress { height: 10px; border-radius: 99px; background: #eceff3; overflow: hidden; }
 .progress span { display: block; height: 100%; background: linear-gradient(90deg, var(--express-dark) 0%, var(--express-bright) 100%); border-radius: inherit; }
 .progress-label, .compact-meta, .compact-foot { margin: 0; color: var(--slate); font-weight: 650; }
+.credit-line { margin: 0; font-weight: 800; color: var(--charcoal); }
+.compact-card .credit-line { color: #d5dbe3; }
+.placer-list { display: flex; flex-direction: column; gap: 10px; }
+.placer-btn {
+  width: 100%;
+  min-height: 76px;
+  font-size: 1.45rem;
+  justify-content: flex-start;
+  text-align: left;
+}
+.placer-btn span { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.placer-btn small { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
 .compact-foot strong, .score-sub, .score-open { color: white; }
 
 .meta { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }

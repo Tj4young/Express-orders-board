@@ -68,14 +68,14 @@ On the TV, open the Battle page, tap the browser’s full-screen control, and le
 1. Open the Tempe or Mesa page.
 2. Tap **Unlock** and enter the team passcode. That browser remembers it until someone taps **Lock**.
 3. Tap **+ Add order**. Fill in office, client, position, pay, shift, openings, how many are already filled, recruiter, date opened, and notes.
-4. On the card, tap **+1 Filled** each time a person is placed. If you tap once too many, tap **Undo** on the card, on the little notice at the bottom, or on the celebration itself.
+4. On the card, tap **+1 Filled** each time a person is placed. A list of names comes up. Tap who placed that person. The person who opened the order is the big blue button at the top. If you tap once too many, tap **Undo**. Undo removes the latest placement and that person's credit.
 5. When filled reaches openings, three things happen:
    - Confetti and a banner, for example `🎉 Express Tempe filled Forklift Operator at ACME!`
    - The filled date is stamped automatically.
    - The order leaves the active board and shows up under Wins.
 6. Orders that have been open **14 days or more** get an **Aging** badge.
 7. Use the filters for recruiter and shift. Sort by oldest or by most openings.
-8. **Recruiters** lets you rename someone or move them to the other office. You cannot remove a recruiter who still has orders.
+8. **Recruiters** lets you rename someone or move them to the other office. You cannot remove a recruiter who still has orders or placements. Moving someone does not rewrite heads they already placed.
 9. **Sound off** is the default so a TV stays quiet. Tap **Sound on** on a laptop if you want a short chime with the confetti. Each browser remembers that choice. The browser may ignore sound until the page has been clicked.
 10. **Add example order** puts one clearly labeled sample on the board (`EXAMPLE — Demo Client`). It is optional, there can be only one, and it is not a real job. Delete it when you are done looking.
 
@@ -85,14 +85,15 @@ Changes show up for everyone within a few seconds. You do not need to refresh.
 
 The Battle page compares the offices in **Arizona time**. Weeks run Monday through Sunday.
 
-- **Heads** are people placed. Every **+1 Filled** counts as one head. Undo removes it.
-- **Orders filled** are orders that reached full during that week or month.
+- **Heads** are people placed. Each **+1 Filled** is one head for the person you tap, and for that person's office. The order card shows the split, such as **Ivonne 2 · Jane 2**. Undo removes the latest head.
+- **Orders filled** still belong to the office that opened the order.
 - **Fill rate** is orders closed during the period, divided by orders that office was working. An order counts as worked if it is still open, or it was filled during the period. Orders finished before the period started do not count.
 - The **trophy** goes to the office with more heads this month. If that is a tie, the office that closed more orders wins. If that is also a tie, the higher fill rate wins. If all of that matches, the board says the offices are tied.
-- The recruiter leaderboard counts heads for the person named on the order, across both offices.
-- The ticker along the bottom is the latest wins.
+- The recruiter leaderboard counts heads for the person who placed them, across both offices.
+- The ticker and the celebration name everyone who placed someone on that order.
+- **Opened by** is who opened the order. It is not who gets every head.
 
-Editing an order moves its fills to the office and recruiter you save. Deleting an order removes those heads, so a mistake does not stay on the scoreboard.
+Placements already on the board stay with the person who opened the order. Deleting an order removes those heads. Changing who opened an order does not move heads that were already placed.
 
 ## A note about the link
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { addExampleOrder, createInitialState, createOrder, deleteOrder, deleteRecruiter, fillOrder, parseOrderInput, updateOrder, type Clock } from "./board";
+import { addExampleOrder, createInitialState, createOrder, deleteOrder, deleteRecruiter, fillOrder, normalizeState, parseOrderInput, updateOrder, type Clock } from "./board";
 import { scoreBoard } from "./scoring";
 import type { OrderInput } from "./types";
 
@@ -63,6 +63,7 @@ test("filling the last opening stamps the date, celebrates, and undo brings it b
   assert.equal(step.celebration?.officeName, "Express Tempe");
   assert.equal(step.celebration?.position, "Forklift Operator");
   assert.equal(step.celebration?.client, "ACME");
+  assert.deepEqual(step.celebration?.contributors, ["Ivonne"]);
   assert.equal(step.state.orders[0].dateFilled, "2026-11-18T19:00:00.000Z");
   assert.equal(step.state.fillEvents.length, 2);
 
@@ -115,12 +116,12 @@ test("scores count heads and closed orders for the Phoenix week and month", () =
   assert.equal(scores.recentWins[0].client, "ACME");
 });
 
-test("moving an order to the other office moves its fills with it", () => {
+test("changing who opened an order does not move placement credit", () => {
   const timer = clock();
   let state = createInitialState(NOW);
   state = createOrder(state, input({ openings: 1 }), timer).state;
   const id = state.orders[0].id;
-  state = fillOrder(state, id, "increment", timer).state;
+  state = fillOrder(state, id, "increment", timer, "rec_ivonne").state;
   const moved = updateOrder(
     state,
     id,
@@ -128,12 +129,90 @@ test("moving an order to the other office moves its fills with it", () => {
     timer,
   );
   assert.equal(moved.celebration, null);
-  assert.equal(moved.state.fillEvents[0].office, "mesa");
-  assert.equal(moved.state.fillEvents[0].recruiterId, "rec_tim");
+  assert.equal(moved.state.orders[0].recruiterId, "rec_tim");
+  assert.equal(moved.state.fillEvents[0].office, "tempe");
+  assert.equal(moved.state.fillEvents[0].recruiterId, "rec_ivonne");
   const scores = scoreBoard(moved.state, NOW);
+  assert.equal(scores.tempe.monthHeads, 1);
+  assert.equal(scores.mesa.monthHeads, 0);
+  assert.equal(scores.leader, "tempe");
+});
+
+test("placements on one order split between the people who filled them", () => {
+  const timer = clock();
+  let state = createInitialState(NOW);
+  state = createOrder(state, input({ openings: 4, client: "ACME" }), timer).state;
+  const id = state.orders[0].id;
+  state = fillOrder(state, id, "increment", timer, "rec_ivonne").state;
+  state = fillOrder(state, id, "increment", timer, "rec_jane").state;
+  state = fillOrder(state, id, "increment", timer, "rec_jane").state;
+  const beforeUndo = scoreBoard(state, NOW);
+  assert.equal(beforeUndo.recruiters.find((person) => person.name === "Ivonne")?.monthHeads, 1);
+  assert.equal(beforeUndo.recruiters.find((person) => person.name === "Jane")?.monthHeads, 2);
+  assert.equal(beforeUndo.tempe.monthHeads, 3);
+  assert.equal(state.fillEvents.map((event) => event.recruiterId).join(","), "rec_ivonne,rec_jane,rec_jane");
+
+  state = fillOrder(state, id, "undo", timer).state;
+  const afterUndo = scoreBoard(state, NOW);
+  assert.equal(state.orders[0].filled, 2);
+  assert.equal(afterUndo.recruiters.find((person) => person.name === "Jane")?.monthHeads, 1);
+  assert.equal(afterUndo.tempe.monthHeads, 2);
+
+  state = fillOrder(state, id, "increment", timer, "rec_jane").state;
+  state = fillOrder(state, id, "increment", timer, "rec_alex").state;
+  const done = state.orders[0];
+  assert.ok(done.dateFilled);
+  const celebration = state.celebrations.find((item) => item.orderId === id);
+  assert.deepEqual(celebration?.contributors, ["Ivonne", "Jane", "Alex"]);
+  const scores = scoreBoard(state, NOW);
+  assert.equal(scores.tempe.monthHeads, 3);
   assert.equal(scores.mesa.monthHeads, 1);
-  assert.equal(scores.tempe.monthHeads, 0);
-  assert.equal(scores.leader, "mesa");
+  assert.equal(scores.tempe.monthOrders, 1);
+});
+
+test("older fills stay credited to the person who opened the order", () => {
+  const migrated = normalizeState({
+    recruiters: [
+      { id: "rec_ivonne", name: "Ivonne", office: "tempe" },
+      { id: "rec_jane", name: "Jane", office: "tempe" },
+    ],
+    orders: [
+      {
+        id: "order-1",
+        office: "mesa",
+        client: "ACME",
+        position: "Welder",
+        payRate: "$20/hr",
+        shift: "Days",
+        openings: 1,
+        filled: 1,
+        recruiterId: "rec_ivonne",
+        dateOpened: "2026-11-01",
+        dateFilled: "2026-11-02T18:00:00.000Z",
+        notes: "",
+        example: false,
+        createdAt: "2026-11-01T18:00:00.000Z",
+        updatedAt: "2026-11-02T18:00:00.000Z",
+      },
+    ],
+    fillEvents: [
+      {
+        id: "fill-1",
+        orderId: "order-1",
+        office: "mesa",
+        recruiterId: "rec_jane",
+        at: "2026-11-02T18:00:00.000Z",
+      },
+    ],
+    celebrations: [],
+    updatedAt: "2026-11-02T18:00:00.000Z",
+  });
+  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.fillEvents[0].recruiterId, "rec_ivonne");
+  assert.equal(migrated.fillEvents[0].office, "tempe");
+  const again = normalizeState(migrated);
+  assert.equal(again.fillEvents[0].recruiterId, "rec_ivonne");
+  assert.equal(again.fillEvents[0].office, "tempe");
 });
 
 test("deleting an order removes the heads it earned", () => {

@@ -10,6 +10,7 @@ import type { Order } from "@/lib/types";
 type CardProps = {
   order: Order;
   recruiterName: string;
+  credit?: string;
   today: string | null;
   readOnly: boolean;
   exiting?: boolean;
@@ -23,6 +24,7 @@ type CardProps = {
 export function OrderCard({
   order,
   recruiterName,
+  credit = "",
   today,
   readOnly,
   exiting = false,
@@ -66,6 +68,11 @@ export function OrderCard({
       <p className="progress-label">
         {order.filled} of {order.openings} filled
       </p>
+      {credit && (
+        <p className="credit-line" data-testid="placement-credit">
+          {credit}
+        </p>
+      )}
       <dl className="meta">
         <div>
           <dt>Pay</dt>
@@ -76,7 +83,7 @@ export function OrderCard({
           <dd>{order.shift}</dd>
         </div>
         <div>
-          <dt>Recruiter</dt>
+          <dt>Opened by</dt>
           <dd>{recruiterName}</dd>
         </div>
         <div>
@@ -129,10 +136,12 @@ export function OrderCard({
 export function CompactOrder({
   order,
   recruiterName,
+  credit = "",
   today,
 }: {
   order: Order;
   recruiterName: string;
+  credit?: string;
   today: string | null;
 }) {
   const aging = today ? isAging(order.dateOpened, today, order.dateFilled) : false;
@@ -156,6 +165,7 @@ export function CompactOrder({
       <p className="compact-foot">
         <strong>{left} left</strong> · {order.filled}/{order.openings} · {recruiterName}
       </p>
+      {credit && <p className="credit-line">{credit}</p>}
     </article>
   );
 }
