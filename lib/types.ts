@@ -15,6 +15,7 @@ export type Order = {
   shift: string;
   openings: number;
   filled: number;
+  /** Who opened the order. Each placement is credited on its own fill. */
   recruiterId: string;
   /** Calendar date the order was opened, YYYY-MM-DD in the office's terms. */
   dateOpened: string;
@@ -27,7 +28,11 @@ export type Order = {
   updatedAt: string;
 };
 
-/** One person placed. Undoing a fill removes the event so the score stays honest. */
+/**
+ * One person placed. `recruiterId` is who placed them.
+ * `office` is that recruiter's office at the time, so a later office change
+ * does not move the head. Undo deletes this record.
+ */
 export type FillEvent = {
   id: string;
   orderId: string;
@@ -43,11 +48,16 @@ export type Celebration = {
   officeName: string;
   client: string;
   position: string;
+  /** Order owner, the person who opened it. */
   recruiterName: string;
+  /** Everyone who placed at least one person, in the order they first did. */
+  contributors?: string[];
   at: string;
 };
 
 export type BoardState = {
+  /** 2 means each fill is already credited to the person who placed it. */
+  schemaVersion: number;
   recruiters: Recruiter[];
   orders: Order[];
   fillEvents: FillEvent[];

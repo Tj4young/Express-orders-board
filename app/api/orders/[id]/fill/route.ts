@@ -13,7 +13,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (action !== "increment" && action !== "undo") {
       throw new BoardError("Unknown fill action.");
     }
-    return ok(await getRepository().fill(id, action));
+    let recruiterId: string | undefined;
+    if (action === "increment") {
+      const chosen = body && typeof body === "object" ? (body as { recruiterId?: unknown }).recruiterId : null;
+      if (typeof chosen !== "string" || !chosen.trim()) {
+        throw new BoardError("Choose who placed this person.");
+      }
+      recruiterId = chosen.trim();
+    }
+    return ok(await getRepository().fill(id, action, recruiterId));
   } catch (error) {
     return fail(error);
   }

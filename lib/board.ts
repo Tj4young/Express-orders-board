@@ -1,3 +1,4 @@
+import { contributorIds, recruiterDisplayName } from "./credit";
 import { DEFAULT_RECRUITERS } from "./defaults";
 import { officeName } from "./offices";
 import { formatPhoenixISODate, isValidISODate } from "./time";
@@ -33,6 +34,7 @@ export type Clock = {
 
 export function createInitialState(now = new Date()): BoardState {
   return {
+    schemaVersion: 2,
     recruiters: DEFAULT_RECRUITERS.map((recruiter) => ({ ...recruiter })),
     orders: [],
     fillEvents: [],
@@ -106,11 +108,9 @@ export function parseRecruiterInput(body: unknown): RecruiterInput {
   return { name, office };
 }
 
-function recruiterName(state: BoardState, recruiterId: string): string {
-  return state.recruiters.find((recruiter) => recruiter.id === recruiterId)?.name ?? "Team";
-}
-
 function celebrationFor(order: Order, state: BoardState, now: Date, id: () => string): Celebration {
+  const ids = contributorIds(state, order.id);
+  const names = ids.map((recruiterId) => recruiterDisplayName(state, recruiterId));
   return {
     id: id(),
     orderId: order.id,
@@ -118,32 +118,29 @@ function celebrationFor(order: Order, state: BoardState, now: Date, id: () => st
     officeName: officeName(order.office),
     client: order.client,
     position: order.position,
-    recruiterName: recruiterName(state, order.recruiterId),
+    recruiterName: recruiterDisplayName(state, order.recruiterId),
+    contributors: names,
     at: now.toISOString(),
   };
 }
 
-function pushFill(state: BoardState, order: Order, now: Date, id: () => string) {
+function pushFill(state: BoardState, order: Order, recruiterId: string, now: Date, id: () => string) {
+  const recruiter = state.recruiters.find((person) => person.id === recruiterId);
+  if (!recruiter) throw new BoardError("Choose a recruiter from the list.");
   const event: FillEvent = {
     id: id(),
     orderId: order.id,
-    office: order.office,
-    recruiterId: order.recruiterId,
+    office: recruiter.office,
+    recruiterId: recruiter.id,
     at: now.toISOString(),
   };
   state.fillEvents.push(event);
 }
 
 function syncFills(state: BoardState, order: Order, now: Date, id: () => string) {
-  for (const event of state.fillEvents) {
-    if (event.orderId === order.id) {
-      event.office = order.office;
-      event.recruiterId = order.recruiterId;
-    }
-  }
   const current = state.fillEvents.filter((event) => event.orderId === order.id).length;
   if (order.filled > current) {
-    for (let i = 0; i < order.filled - current; i += 1) pushFill(state, order, now, id);
+    for (let i = 0; i < order.filled - current; i += 1) pushFill(state, order, order.recruiterId, now, id);
   } else if (order.filled < current) {
     let extra = current - order.filled;
     for (let i = state.fillEvents.length - 1; i >= 0 && extra > 0; i -= 1) {
@@ -181,7 +178,8 @@ function finishIfNeeded(
       item.officeName = officeName(order.office);
       item.client = order.client;
       item.position = order.position;
-      item.recruiterName = recruiterName(state, order.recruiterId);
+      item.recruiterName = recruiterDisplayName(state, order.recruiterId);
+      item.contributors = contributorIds(state, order.id).map((recruiterId) => recruiterDisplayName(state, recruiterId));
     }
   }
   return null;
@@ -212,7 +210,7 @@ export function createOrder(state: BoardState, input: OrderInput, clock: Clock):
     updatedAt: clock.now.toISOString(),
   };
   next.orders.push(order);
-  for (let i = 0; i < order.filled; i += 1) pushFill(next, order, clock.now, clock.id);
+  for (let i = 0; i < order.filled; i += 1) pushFill(next, order, order.recruiterId, clock.now, clock.id);
   const celebration = finishIfNeeded(next, order, false, clock.now, clock.id);
   touch(next, clock.now);
   return { state: next, celebration };
@@ -257,6 +255,7 @@ export function fillOrder(
   orderId: string,
   action: "increment" | "undo",
   clock: Clock,
+  placedBy?: string,
 ): MutationResult {
   const next = structuredClone(state);
   const order = next.orders.find((item) => item.id === orderId);
@@ -267,7 +266,7 @@ export function fillOrder(
     const wasComplete = Boolean(order.dateFilled);
     order.filled += 1;
     order.updatedAt = clock.now.toISOString();
-    pushFill(next, order, clock.now, clock.id);
+    pushFill(next, order, placedBy ?? order.recruiterId, clock.now, clock.id);
     const celebration = finishIfNeeded(next, order, wasComplete, clock.now, clock.id);
     touch(next, clock.now);
     return { state: next, celebration };
@@ -315,8 +314,14 @@ export function updateRecruiter(
   recruiter.name = input.name;
   recruiter.office = input.office;
   for (const item of next.celebrations) {
-    if (next.orders.some((order) => order.id === item.orderId && order.recruiterId === recruiterId)) {
+    if (item.orderId && next.orders.some((order) => order.id === item.orderId && order.recruiterId === recruiterId)) {
       item.recruiterName = input.name;
+    }
+    if (item.contributors?.length) {
+      const ids = contributorIds(next, item.orderId);
+      if (ids.includes(recruiterId)) {
+        item.contributors = ids.map((id) => recruiterDisplayName(next, id));
+      }
     }
   }
   touch(next, clock.now);
@@ -331,6 +336,9 @@ export function deleteRecruiter(state: BoardState, recruiterId: string, clock: C
   if (next.recruiters.length <= 1) throw new BoardError("Keep at least one recruiter on the list.");
   if (next.orders.some((order) => order.recruiterId === recruiterId)) {
     throw new BoardError("This recruiter still has orders. Reassign those orders first.");
+  }
+  if (next.fillEvents.some((event) => event.recruiterId === recruiterId)) {
+    throw new BoardError("This recruiter has placements on the board. Keep them on the list so those heads stay with their name.");
   }
   next.recruiters = next.recruiters.filter((recruiter) => recruiter.id !== recruiterId);
   touch(next, clock.now);
@@ -371,10 +379,26 @@ export function normalizeState(value: unknown): BoardState {
   if (!value || typeof value !== "object") return createInitialState();
   const raw = value as Partial<BoardState>;
   const base = createInitialState();
+  const recruiters = Array.isArray(raw.recruiters) && raw.recruiters.length > 0 ? raw.recruiters : base.recruiters;
+  const orders = Array.isArray(raw.orders) ? raw.orders : [];
+  let fillEvents = Array.isArray(raw.fillEvents) ? raw.fillEvents : [];
+  if (raw.schemaVersion !== 2) {
+    fillEvents = fillEvents.map((event) => {
+      const order = orders.find((item) => item.id === event.orderId);
+      if (!order) return event;
+      const owner = recruiters.find((person) => person.id === order.recruiterId);
+      return {
+        ...event,
+        recruiterId: order.recruiterId,
+        office: owner?.office ?? (event.office === "mesa" || event.office === "tempe" ? event.office : order.office),
+      };
+    });
+  }
   return {
-    recruiters: Array.isArray(raw.recruiters) && raw.recruiters.length > 0 ? raw.recruiters : base.recruiters,
-    orders: Array.isArray(raw.orders) ? raw.orders : [],
-    fillEvents: Array.isArray(raw.fillEvents) ? raw.fillEvents : [],
+    schemaVersion: 2,
+    recruiters,
+    orders,
+    fillEvents,
     celebrations: Array.isArray(raw.celebrations) ? raw.celebrations : [],
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : base.updatedAt,
   };

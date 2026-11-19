@@ -9,6 +9,7 @@ import type { Order } from "@/lib/types";
 export function WinCard({
   order,
   recruiterName,
+  credit = "",
   fresh,
   unlocked,
   pending,
@@ -18,6 +19,7 @@ export function WinCard({
 }: {
   order: Order;
   recruiterName: string;
+  credit?: string;
   fresh: boolean;
   unlocked: boolean;
   pending: boolean;
@@ -33,8 +35,9 @@ export function WinCard({
       <p className="card-position">{order.position}</p>
       <p className="win-when">{order.dateFilled ? `Filled ${formatPrettyDateTime(order.dateFilled)}` : "Filled"}</p>
       <p className="compact-meta">
-        {order.filled} of {order.openings} · {recruiterName} · {order.shift} · {order.payRate}
+        Opened by {recruiterName} · {order.shift} · {order.payRate}
       </p>
+      {credit && <p className="credit-line">{credit}</p>}
       {order.example && <span className="pill pill-example">Example</span>}
       {unlocked && (
         <div className="card-secondary">

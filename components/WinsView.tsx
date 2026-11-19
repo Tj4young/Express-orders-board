@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { placementBreakdown } from "@/lib/credit";
 import { matchesFilters, sortOrders, type SortKey } from "@/lib/filters";
 import type { OfficeId } from "@/lib/types";
 
@@ -87,6 +88,7 @@ export function WinsView() {
                     key={order.id}
                     order={order}
                     recruiterName={nameFor(order.recruiterId)}
+                    credit={placementBreakdown(state, order.id)}
                     fresh={celebration?.orderId === order.id || Boolean(now && order.dateFilled && now.getTime() - new Date(order.dateFilled).getTime() < 20_000)}
                     unlocked={unlocked}
                     pending={pendingId === order.id}

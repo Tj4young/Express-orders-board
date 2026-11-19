@@ -15,6 +15,7 @@ const POLL_MS = 2500;
 export type DialogState =
   | { type: "order"; order: Order | null; office: OfficeId }
   | { type: "recruiters" }
+  | { type: "place"; order: Order }
   | { type: "unlock" }
   | null;
 
@@ -39,6 +40,7 @@ export type BoardController = {
   lock: () => void;
   openOrder: (order: Order | null, office: OfficeId) => void;
   openRecruiters: () => void;
+  openPlace: (order: Order) => void;
   openUnlock: () => void;
   closeDialog: () => void;
   dismissToast: () => void;
@@ -46,7 +48,7 @@ export type BoardController = {
   createOrder: (input: OrderInput) => Promise<void>;
   updateOrder: (id: string, input: OrderInput) => Promise<void>;
   deleteOrder: (id: string) => Promise<void>;
-  fillOne: (order: Order) => Promise<void>;
+  fillOne: (order: Order, recruiterId: string) => Promise<void>;
   undoFill: (id: string) => Promise<void>;
   saveRecruiter: (input: RecruiterInput, id?: string) => Promise<void>;
   deleteRecruiter: (id: string) => Promise<void>;
@@ -319,6 +321,14 @@ function useBoardController(): BoardController {
     setDialog({ type: "recruiters" });
   }, []);
 
+  const openPlace = useCallback((order: Order) => {
+    if (!passcodeRef.current) {
+      setDialog({ type: "unlock" });
+      return;
+    }
+    setDialog({ type: "place", order });
+  }, []);
+
   const openUnlock = useCallback(() => setDialog({ type: "unlock" }), []);
   const closeDialog = useCallback(() => {
     intentRef.current = null;
@@ -369,18 +379,20 @@ function useBoardController(): BoardController {
   );
 
   const fillOne = useCallback(
-    async (order: Order) => {
+    async (order: Order, recruiterId: string) => {
       setPendingId(order.id);
       try {
         await mutate(
           `/api/orders/${order.id}/fill`,
-          { method: "POST", body: JSON.stringify({ action: "increment" }) },
+          { method: "POST", body: JSON.stringify({ action: "increment", recruiterId }) },
           (body) => {
             applyState(body.state, body.celebration ?? null, true);
+            setDialog((current) => (current?.type === "place" && current.order.id === order.id ? null : current));
             if (!body.celebration) {
+              const name = body.state.recruiters.find((person) => person.id === recruiterId)?.name ?? "Placed";
               const left = Math.max(0, order.openings - order.filled - 1);
               flash({
-                message: `Filled one ${order.position} at ${order.client}. ${left} ${left === 1 ? "spot" : "spots"} left.`,
+                message: `${name} placed one ${order.position} at ${order.client}. ${left} ${left === 1 ? "spot" : "spots"} left.`,
                 undoId: order.id,
               });
             }
@@ -468,6 +480,7 @@ function useBoardController(): BoardController {
     lock,
     openOrder,
     openRecruiters,
+    openPlace,
     openUnlock,
     closeDialog,
     dismissToast,

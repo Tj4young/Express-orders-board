@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { OFFICES, SHIFT_SUGGESTIONS } from "@/lib/offices";
+import { OFFICES, officeName, SHIFT_SUGGESTIONS } from "@/lib/offices";
 import { formatPhoenixISODate } from "@/lib/time";
 import type { OfficeId, Order, OrderInput } from "@/lib/types";
 
@@ -38,6 +38,7 @@ export function Dialogs() {
         onMouseDown={(event) => event.stopPropagation()}
       >
         {dialog.type === "unlock" && <UnlockForm />}
+        {dialog.type === "place" && <WhoPlaced order={dialog.order} />}
         {dialog.type === "recruiters" && <RecruiterForm />}
         {dialog.type === "order" && (
           <OrderForm key={dialog.order?.id ?? `new-${dialog.office}`} order={dialog.order} office={dialog.office} />
@@ -167,7 +168,7 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
           </select>
         </label>
         <label className="field">
-          Recruiter
+          Opened by
           <select value={recruiterId} onChange={(event) => setRecruiterId(event.target.value)}>
             {orderedRecruiters.map((person) => (
               <option key={person.id} value={person.id}>
@@ -258,6 +259,65 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
         </button>
       </div>
     </form>
+  );
+}
+
+function WhoPlaced({ order }: { order: Order }) {
+  const { state, fillOne, closeDialog, pendingId } = useBoard();
+  const people = state?.recruiters ?? [];
+  const owner = people.find((person) => person.id === order.recruiterId) ?? null;
+  const others = people.filter((person) => person.id !== owner?.id);
+  const busy = pendingId === order.id;
+
+  const choose = (recruiterId: string) => {
+    void fillOne(order, recruiterId);
+  };
+
+  return (
+    <div data-testid="who-placed">
+      <p className="eyebrow">Placement</p>
+      <h2>Who placed this person?</h2>
+      <p className="hint">
+        {order.position} at {order.client}. {owner ? `${owner.name} opened the order and is first.` : "Choose who gets credit for this head."}
+      </p>
+      <div className="placer-list">
+        {owner && (
+          <button
+            className="btn btn-primary placer-btn"
+            type="button"
+            autoFocus
+            data-testid={`placer-${owner.id}`}
+            disabled={busy}
+            onClick={() => choose(owner.id)}
+          >
+            <span>
+              {owner.name}
+              <small>{officeName(owner.office)} · opened this order</small>
+            </span>
+          </button>
+        )}
+        {others.map((person) => (
+          <button
+            key={person.id}
+            className="btn btn-ghost placer-btn"
+            type="button"
+            data-testid={`placer-${person.id}`}
+            disabled={busy}
+            onClick={() => choose(person.id)}
+          >
+            <span>
+              {person.name}
+              <small>{OFFICES[person.office].short}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="dialog-actions">
+        <button className="btn btn-ghost" type="button" onClick={closeDialog} disabled={busy}>
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 
