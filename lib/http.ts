@@ -24,10 +24,17 @@ export function fail(error: unknown) {
 }
 
 export async function readJson(request: Request): Promise<unknown> {
+  let text = "";
   try {
-    return await request.json();
+    text = await request.text();
   } catch {
-    throw new BoardError("The request was empty or invalid.");
+    throw new BoardError("The order didn't come through. If you added a logo, try a smaller photo.");
+  }
+  if (!text) throw new BoardError("The order was empty. If you added a logo, try a smaller photo.");
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new BoardError("The order was cut off before it saved. Remove the logo or use a smaller photo, then try again.");
   }
 }
 

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { formatNameList } from "@/lib/credit";
 import { formatPrettyDateTime } from "@/lib/time";
 
+import { ClientLogo } from "./ClientLogo";
 import { useBoard } from "./BoardProvider";
 
 const COLORS = ["#0096D6", "#0077C0", "#005288", "#ffffff", "#E9B632", "#7ec8ee"];
@@ -42,7 +43,7 @@ function makeBurst(width: number, height: number): Particle[] {
 }
 
 export function CelebrationOverlay() {
-  const { celebration, dismissCelebration, undoFill, pendingId, unlocked } = useBoard();
+  const { celebration, dismissCelebration, undoFill, pendingId, unlocked, state } = useBoard();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [reduced, setReduced] = useState(false);
 
@@ -125,6 +126,11 @@ export function CelebrationOverlay() {
     <div className="celebration" role="dialog" aria-modal="true" aria-labelledby="celebration-title" data-testid="celebration">
       {!reduced && <canvas ref={canvasRef} className="confetti" />}
       <div className="celebration-card">
+        <ClientLogo
+          client={celebration.client}
+          logo={state?.orders.find((order) => order.id === celebration.orderId)?.logo}
+          size={76}
+        />
         <p className="celebration-kicker">Order filled</p>
         <h2 id="celebration-title">
           🎉 {celebration.officeName} filled {celebration.position} at {celebration.client}!

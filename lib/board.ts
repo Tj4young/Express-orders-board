@@ -1,4 +1,5 @@
 import { contributorIds, recruiterDisplayName } from "./credit";
+import { isSafeLogo, sanitizeLogo } from "./logo";
 import { DEFAULT_RECRUITERS } from "./defaults";
 import { officeName } from "./offices";
 import { formatPhoenixISODate, isValidISODate } from "./time";
@@ -82,6 +83,12 @@ export function parseOrderInput(body: unknown, recruiters: Recruiter[], now: Dat
   if (!isValidISODate(dateOpened)) throw new BoardError("Enter a valid date opened.");
   const today = formatPhoenixISODate(now);
   if (dateOpened > today) throw new BoardError("Date opened can't be in the future.");
+  let logo: string | null = null;
+  try {
+    logo = sanitizeLogo(raw.logo);
+  } catch (error) {
+    throw new BoardError(error instanceof Error ? error.message : "Use a PNG, JPG, WebP, or SVG logo.");
+  }
   return {
     office,
     client: text(raw.client, "Client", 80, true),
@@ -93,6 +100,7 @@ export function parseOrderInput(body: unknown, recruiters: Recruiter[], now: Dat
     recruiterId,
     dateOpened,
     notes: text(raw.notes, "Notes", 500, false),
+    logo,
   };
 }
 
@@ -367,6 +375,7 @@ export function addExampleOrder(state: BoardState, clock: Clock): BoardState {
       recruiterId: recruiter.id,
       dateOpened: formatPhoenixISODate(clock.now),
       notes: "Example only. This is not a real order — delete it anytime.",
+      logo: null,
     },
     clock,
   );
@@ -380,7 +389,10 @@ export function normalizeState(value: unknown): BoardState {
   const raw = value as Partial<BoardState>;
   const base = createInitialState();
   const recruiters = Array.isArray(raw.recruiters) && raw.recruiters.length > 0 ? raw.recruiters : base.recruiters;
-  const orders = Array.isArray(raw.orders) ? raw.orders : [];
+  const orders = (Array.isArray(raw.orders) ? raw.orders : []).map((order) => ({
+    ...order,
+    logo: isSafeLogo(order.logo) ? order.logo : null,
+  }));
   let fillEvents = Array.isArray(raw.fillEvents) ? raw.fillEvents : [];
   if (raw.schemaVersion !== 2) {
     fillEvents = fillEvents.map((event) => {

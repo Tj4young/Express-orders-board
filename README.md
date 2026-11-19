@@ -67,7 +67,7 @@ On the TV, open the Battle page, tap the browser’s full-screen control, and le
 
 1. Open the Tempe or Mesa page.
 2. Tap **Unlock** and enter the team passcode. That browser remembers it until someone taps **Lock**.
-3. Tap **+ Add order**. Fill in office, client, position, pay, shift, openings, how many are already filled, recruiter, date opened, and notes.
+3. Tap **+ Add order**. Fill in office, client, position, pay, shift, openings, how many are already filled, who opened it, date opened, and notes. **Upload logo** adds the client's logo from a PNG, JPG, WebP, SVG, or a phone photo. The phone photo is shrunk on the device before it is saved. **Replace logo** or **Remove** changes it later. If there is no logo, the card shows the client's initials. No extra storage setup is required. The picture is saved with the order.
 4. On the card, tap **+1 Filled** each time a person is placed. A list of names comes up. Tap who placed that person. The person who opened the order is the big blue button at the top. If you tap once too many, tap **Undo**. Undo removes the latest placement and that person's credit.
 5. When filled reaches openings, three things happen:
    - Confetti and a banner, for example `🎉 Express Tempe filled Forklift Operator at ACME!`

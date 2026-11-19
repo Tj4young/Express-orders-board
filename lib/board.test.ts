@@ -33,6 +33,7 @@ function input(overrides: Partial<OrderInput> = {}): OrderInput {
     recruiterId: "rec_ivonne",
     dateOpened: "2026-11-01",
     notes: "Day shift",
+    logo: null,
     ...overrides,
   };
 }

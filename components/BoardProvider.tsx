@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
+import { formatKb, logoBytes } from "@/lib/logo";
 import type { BoardState, Celebration, OfficeId, Order, OrderInput, RecruiterInput } from "@/lib/types";
 
 import { CelebrationOverlay } from "./CelebrationOverlay";
@@ -11,6 +12,17 @@ import { playCelebrationSound, primeCelebrationSound } from "./sound";
 const PASSCODE_KEY = "express-orders-passcode";
 const SOUND_KEY = "express-orders-sound";
 const POLL_MS = 2500;
+
+function assertLogoSaved(input: OrderInput, state: BoardState | undefined) {
+  if (!input.logo) return;
+  const saved = [...(state?.orders ?? [])]
+    .reverse()
+    .find((order) => order.client === input.client && order.position === input.position && order.office === input.office);
+    if (saved?.logo !== input.logo) {
+    const bytes = logoBytes(input.logo);
+    throw new Error(`The order saved, but the logo didn't stick. The logo was ${formatKb(bytes)}.`);
+  }
+}
 
 export type DialogState =
   | { type: "order"; order: Order | null; office: OfficeId }
@@ -245,15 +257,27 @@ function useBoardController(): BoardController {
     if (init?.body) headers.set("Content-Type", "application/json");
     if (passcodeRef.current) headers.set("x-team-passcode", passcodeRef.current);
     const response = await fetch(path, { ...init, headers, cache: "no-store" });
-    const body = (await response.json().catch(() => ({}))) as MutationBody & { error?: string };
+    const raw = await response.text();
+    const requestBytes = typeof init?.body === "string" ? new TextEncoder().encode(init.body).length : 0;
+    let body: Partial<MutationBody> & { error?: string } = {};
+    try {
+      body = raw ? (JSON.parse(raw) as MutationBody & { error?: string }) : {};
+    } catch {
+      body = {
+        error:
+          response.status === 413
+            ? `The server rejected this save. The request was ${formatKb(requestBytes)} and the request limit is 4.5 MB.`
+            : `The save didn't come back in one piece. The request was ${formatKb(requestBytes)}.`,
+      };
+    }
     if (response.status === 401) {
       passcodeRef.current = "";
       window.localStorage.removeItem(PASSCODE_KEY);
       setUnlocked(false);
       setDialog({ type: "unlock" });
     }
-    if (!response.ok) throw new Error(body.error || "That didn't save. Try again.");
-    return body;
+    if (!response.ok || !body.state) throw new Error(body.error || "That didn't save. Try again.");
+    return body as MutationBody;
   }, []);
 
   const mutate = useCallback(
@@ -342,6 +366,7 @@ function useBoardController(): BoardController {
   const createOrder = useCallback(
     async (input: OrderInput) => {
       await mutate("/api/orders", { method: "POST", body: JSON.stringify(input) }, (body) => {
+        assertLogoSaved(input, body.state);
         applyState(body.state, body.celebration ?? null, true);
         setDialog(null);
         if (!body.celebration) flash({ message: `Added ${input.position} at ${input.client}.` });
@@ -353,6 +378,10 @@ function useBoardController(): BoardController {
   const updateOrder = useCallback(
     async (id: string, input: OrderInput) => {
       await mutate(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify(input) }, (body) => {
+        const saved = body.state.orders.find((order) => order.id === id);
+        if (input.logo && saved?.logo !== input.logo) {
+          throw new Error(`The order saved, but the logo didn't stick. The logo was ${formatKb(logoBytes(input.logo))}.`);
+        }
         applyState(body.state, body.celebration ?? null, true);
         setDialog(null);
         if (!body.celebration) flash({ message: `Saved ${input.position} at ${input.client}.` });

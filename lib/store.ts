@@ -213,6 +213,7 @@ function delay(ms: number) {
 let singleton: BoardRepository | null = null;
 
 export function boardFilePath(): string {
+  if (process.env.BOARD_FILE) return process.env.BOARD_FILE;
   return path.join(process.cwd(), "data", "board.json");
 }
 

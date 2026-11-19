@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 
 import { IconLock, IconSound } from "./icons";
@@ -23,9 +24,14 @@ export function SiteHeader({ active }: { active: NavKey }) {
         Skip to the board
       </a>
       <div className="header-inner">
-        <Link href="/tempe" className="wordmark" aria-label="Express Employment Professionals, Open Orders Board">
-          <span className="wordmark-express">EXPRESS</span>
-          <span className="wordmark-sub">Employment Professionals</span>
+        <Link href="/tempe" className="wordmark">
+          <Image
+            src="/express-logo.png"
+            alt="Express Employment Professionals"
+            width={498}
+            height={156}
+            priority
+          />
         </Link>
         <p className="header-title">
           Open Orders

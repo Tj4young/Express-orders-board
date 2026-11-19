@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { ClientLogo } from "./ClientLogo";
 import { spotsLeft } from "@/lib/filters";
 import { OFFICES } from "@/lib/offices";
 import { calendarDaysBetween, formatPrettyDate, isAging } from "@/lib/time";
@@ -48,10 +49,13 @@ export function OrderCard({
       data-example={order.example ? "true" : "false"}
     >
       <div className="card-top">
-        <div>
-          <p className="card-kicker">{OFFICES[order.office].name}</p>
-          <h3>{order.client}</h3>
-          <p className="card-position">{order.position}</p>
+        <div className="card-identity">
+          <ClientLogo client={order.client} logo={order.logo} />
+          <div>
+            <p className="card-kicker">{OFFICES[order.office].name}</p>
+            <h3>{order.client}</h3>
+            <p className="card-position">{order.position}</p>
+          </div>
         </div>
         <div className="card-badges">
           {order.example && <span className="pill pill-example">Example</span>}
@@ -151,7 +155,10 @@ export function CompactOrder({
   return (
     <article className={`compact-card${aging ? " is-aging" : ""}${order.example ? " is-example" : ""}`} data-testid="battle-order">
       <div className="compact-top">
-        <h3>{order.client}</h3>
+        <div className="compact-identity">
+          <ClientLogo client={order.client} logo={order.logo} size={40} />
+          <h3>{order.client}</h3>
+        </div>
         {order.example && <span className="pill pill-example">Example</span>}
         {aging && <span className="pill pill-aging">Aging · {days}d</span>}
       </div>
