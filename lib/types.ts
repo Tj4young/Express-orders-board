@@ -55,6 +55,20 @@ export type Celebration = {
   /** Everyone who placed at least one person, in the order they first did. */
   contributors?: string[];
   at: string;
+  /**
+   * "fill" is a placement. "filled" is the order reaching its last opening.
+   * Missing on celebrations stored before per-fill confetti; those are order-filled.
+   */
+  kind?: "fill" | "filled";
+  /** Openings filled after this celebration. */
+  filled?: number;
+  openings?: number;
+  /** How many new fills this celebration covers. One click is 1. An edit can be more. */
+  added?: number;
+  /** Recruiter credited for this fill. */
+  placedById?: string;
+  /** Display name for placedById, refreshed when that recruiter is renamed. */
+  placedBy?: string;
 };
 
 export type BoardState = {

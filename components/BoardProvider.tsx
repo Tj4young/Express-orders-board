@@ -134,6 +134,7 @@ function useBoardController(): BoardController {
   const mutatingRef = useRef(0);
   const queueRef = useRef<Celebration[]>([]);
   const showingRef = useRef(false);
+  const celebrationIdRef = useRef<string | null>(null);
   const intentRef = useRef<DialogState>(null);
   const toastTimer = useRef<number | null>(null);
 
@@ -142,6 +143,7 @@ function useBoardController(): BoardController {
     const next = queueRef.current.shift();
     if (!next) return;
     showingRef.current = true;
+    celebrationIdRef.current = next.id;
     setCelebration(next);
     setToast(null);
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
@@ -170,6 +172,7 @@ function useBoardController(): BoardController {
 
   const dismissCelebration = useCallback(() => {
     showingRef.current = false;
+    celebrationIdRef.current = null;
     setCelebration(null);
     window.setTimeout(() => pump(), 180);
   }, [pump]);
@@ -186,6 +189,15 @@ function useBoardController(): BoardController {
       if (!fromMutation && updatedAtRef.current && next.updatedAt < updatedAtRef.current) return;
       updatedAtRef.current = next.updatedAt;
       setState(next);
+      const live = new Set(next.celebrations.map((item) => item.id));
+      if (ownCelebration) live.add(ownCelebration.id);
+      queueRef.current = queueRef.current.filter((item) => live.has(item.id));
+      if (celebrationIdRef.current && !live.has(celebrationIdRef.current)) {
+        showingRef.current = false;
+        celebrationIdRef.current = null;
+        setCelebration(null);
+        window.setTimeout(() => pump(), 180);
+      }
       if (!primedRef.current) {
         for (const item of next.celebrations) {
           if (ownCelebration && item.id === ownCelebration.id) continue;
@@ -196,7 +208,7 @@ function useBoardController(): BoardController {
       if (ownCelebration) enqueue([ownCelebration]);
       else if (primedRef.current) enqueue(next.celebrations);
     },
-    [enqueue],
+    [enqueue, pump],
   );
 
   const pull = useCallback(async () => {
@@ -443,12 +455,6 @@ function useBoardController(): BoardController {
         await mutate(`/api/orders/${id}/fill`, { method: "POST", body: JSON.stringify({ action: "undo" }) }, (body) => {
           applyState(body.state, null, true);
           flash({ message: "Undid the last fill." });
-          setCelebration((current) => {
-            if (current?.orderId !== id) return current;
-            showingRef.current = false;
-            window.setTimeout(() => pump(), 180);
-            return null;
-          });
         });
       } catch (error) {
         flash({ message: error instanceof Error ? error.message : "That undo didn't save." });
@@ -456,7 +462,7 @@ function useBoardController(): BoardController {
         setPendingId(null);
       }
     },
-    [applyState, flash, mutate, pump],
+    [applyState, flash, mutate],
   );
 
   const saveRecruiter = useCallback(

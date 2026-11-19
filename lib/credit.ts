@@ -16,6 +16,31 @@ export function contributorNames(state: BoardState, orderId: string): string[] {
   return contributorIds(state, orderId).map((id) => recruiterDisplayName(state, id));
 }
 
+function indefiniteArticle(word: string): "a" | "an" {
+  return /^[aeiou]/i.test(word.trim()) ? "an" : "a";
+}
+
+/** "🎉 Ivonne placed a Machine Operator at State Seal! 2 of 5 filled" */
+export function fillCelebrationTitle(celebration: {
+  placedBy?: string;
+  recruiterName: string;
+  position: string;
+  client: string;
+  filled?: number;
+  openings?: number;
+  added?: number;
+}): string {
+  const name = celebration.placedBy?.trim() || celebration.recruiterName;
+  const filled = celebration.filled ?? 0;
+  const openings = celebration.openings ?? filled;
+  const added = celebration.added && celebration.added > 1 ? celebration.added : 1;
+  const placement =
+    added > 1
+      ? `${name} placed ${added} people as ${celebration.position} at ${celebration.client}`
+      : `${name} placed ${indefiniteArticle(celebration.position)} ${celebration.position} at ${celebration.client}`;
+  return `🎉 ${placement}! ${filled} of ${openings} filled`;
+}
+
 /** "Ivonne", "Ivonne and Jane", "Ivonne, Jane, and Alex". */
 export function formatNameList(names: string[]): string {
   if (names.length === 0) return "Team";
