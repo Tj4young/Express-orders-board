@@ -294,7 +294,7 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
                   Remove
                 </button>
               )}
-              <p className="hint">PNG, JPG, WebP, or SVG. A phone photo is resized automatically.</p>
+              <p className="hint">PNG, JPG, WebP, or SVG. Large photos are resized to fit.</p>
             </div>
           </div>
           {logoError && (

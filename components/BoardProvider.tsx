@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
+import { formatKb, logoBytes } from "@/lib/logo";
 import type { BoardState, Celebration, OfficeId, Order, OrderInput, RecruiterInput } from "@/lib/types";
 
 import { CelebrationOverlay } from "./CelebrationOverlay";
@@ -17,8 +18,9 @@ function assertLogoSaved(input: OrderInput, state: BoardState | undefined) {
   const saved = [...(state?.orders ?? [])]
     .reverse()
     .find((order) => order.client === input.client && order.position === input.position && order.office === input.office);
-  if (saved?.logo !== input.logo) {
-    throw new Error("The order saved, but the logo didn't stick. Try a smaller photo.");
+    if (saved?.logo !== input.logo) {
+    const bytes = logoBytes(input.logo);
+    throw new Error(`The order saved, but the logo didn't stick. The logo was ${formatKb(bytes)}.`);
   }
 }
 
@@ -256,6 +258,7 @@ function useBoardController(): BoardController {
     if (passcodeRef.current) headers.set("x-team-passcode", passcodeRef.current);
     const response = await fetch(path, { ...init, headers, cache: "no-store" });
     const raw = await response.text();
+    const requestBytes = typeof init?.body === "string" ? new TextEncoder().encode(init.body).length : 0;
     let body: Partial<MutationBody> & { error?: string } = {};
     try {
       body = raw ? (JSON.parse(raw) as MutationBody & { error?: string }) : {};
@@ -263,8 +266,8 @@ function useBoardController(): BoardController {
       body = {
         error:
           response.status === 413
-            ? "That photo is too big to save. Use a smaller image."
-            : "The save didn't come back in one piece. Try the photo again.",
+            ? `The server rejected this save. The request was ${formatKb(requestBytes)} and the request limit is 4.5 MB.`
+            : `The save didn't come back in one piece. The request was ${formatKb(requestBytes)}.`,
       };
     }
     if (response.status === 401) {
@@ -377,7 +380,7 @@ function useBoardController(): BoardController {
       await mutate(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify(input) }, (body) => {
         const saved = body.state.orders.find((order) => order.id === id);
         if (input.logo && saved?.logo !== input.logo) {
-          throw new Error("The order saved, but the logo didn't stick. Try a smaller photo.");
+          throw new Error(`The order saved, but the logo didn't stick. The logo was ${formatKb(logoBytes(input.logo))}.`);
         }
         applyState(body.state, body.celebration ?? null, true);
         setDialog(null);

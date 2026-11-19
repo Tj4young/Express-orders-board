@@ -18,8 +18,8 @@ export function ClientLogo({
   const showImage = Boolean(logo) && !broken;
   return (
     <span
-      className="client-mark"
-      style={{ width: size, height: size }}
+      className={showImage ? "client-mark with-logo" : "client-mark"}
+      style={{ width: showImage ? Math.round(size * 1.7) : size, height: size }}
       data-testid={showImage ? "client-logo" : "client-initials"}
     >
       {showImage ? (

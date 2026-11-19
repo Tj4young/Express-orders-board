@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { clientInitials, isSafeLogo, sanitizeLogo } from "./logo";
+import { clientInitials, formatKb, isSafeLogo, logoBytes, MAX_LOGO_BYTES, sanitizeLogo } from "./logo";
 
 test("initials come from the client name", () => {
   assert.equal(clientInitials("ACME Logistics"), "AL");
@@ -17,6 +18,34 @@ test("a small png data url is kept and junk is rejected", () => {
   assert.equal(sanitizeLogo(""), null);
   assert.equal(isSafeLogo("https://example.com/logo.png"), false);
   assert.throws(() => sanitizeLogo("data:image/gif;base64,AAAA"), /PNG, JPG, WebP, or SVG/);
+});
+
+test("Tim's tiny Avnet files are accepted and measured in image bytes", () => {
+  const png = readFileSync(new URL("../fixtures/avnet1.png", import.meta.url));
+  const jpg = readFileSync(new URL("../fixtures/avnet2.jpg", import.meta.url));
+  const pngUrl = `data:image/png;base64,${png.toString("base64")}`;
+  const jpgUrl = `data:image/jpeg;base64,${jpg.toString("base64")}`;
+  assert.equal(png.length, 2975);
+  assert.equal(jpg.length, 6329);
+  assert.equal(logoBytes(pngUrl), 2975);
+  assert.equal(logoBytes(jpgUrl), 6329);
+  assert.equal(sanitizeLogo(pngUrl), pngUrl);
+  assert.equal(sanitizeLogo(jpgUrl), jpgUrl);
+});
+
+test("a logo over 300KB is rejected with the actual size and the limit", () => {
+  const raw = Buffer.alloc(301 * 1024, 7);
+  const url = `data:image/jpeg;base64,${raw.toString("base64")}`;
+  assert.equal(isSafeLogo(url), false);
+  assert.throws(() => sanitizeLogo(url), new RegExp(`${formatKb(301 * 1024)}[\\s\\S]*${formatKb(MAX_LOGO_BYTES)}`));
+});
+
+test("a 5KB and a 200KB jpeg stay under the limit", () => {
+  for (const size of [5 * 1024, 200 * 1024]) {
+    const url = `data:image/jpeg;base64,${Buffer.alloc(size, 3).toString("base64")}`;
+    assert.equal(logoBytes(url), size);
+    assert.equal(sanitizeLogo(url), url);
+  }
 });
 
 test("svg logos cannot carry a script", () => {

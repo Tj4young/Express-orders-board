@@ -364,7 +364,11 @@ a { color: var(--express); }
   font-size: 1.05rem;
   letter-spacing: 0.02em;
 }
-.client-mark img { width: 100%; height: 100%; object-fit: contain; background: white; display: block; }
+.client-mark.with-logo {
+  background: transparent;
+  border-color: rgba(0, 0, 0, 0.16);
+}
+.client-mark img { width: 100%; height: 100%; object-fit: contain; background: transparent; display: block; }
 .celebration-card .client-mark { margin: 0 auto 10px; font-size: 1.4rem; }
 .logo-upload { display: flex; align-items: center; gap: 14px; }
 .logo-upload-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
