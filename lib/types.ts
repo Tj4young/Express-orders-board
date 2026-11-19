@@ -22,6 +22,8 @@ export type Order = {
   /** ISO timestamp when filled first reached openings. Null while the order is active. */
   dateFilled: string | null;
   notes: string;
+  /** Small data URL for the client's logo, or null. */
+  logo: string | null;
   /** True only for the optional labeled sample. Never seeded on its own. */
   example: boolean;
   createdAt: string;
@@ -76,6 +78,7 @@ export type OrderInput = {
   recruiterId: string;
   dateOpened: string;
   notes: string;
+  logo: string | null;
 };
 
 export type RecruiterInput = {

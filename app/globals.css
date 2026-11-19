@@ -346,7 +346,29 @@ a { color: var(--express); }
   100% { transform: translateY(-36px) scale(0.96); opacity: 0; }
 }
 
-.card-top, .compact-top { display: flex; justify-content: space-between; gap: 10px; }
+.card-top, .compact-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.card-identity, .compact-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.client-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(160deg, #e7f4fb, #d3e6f4);
+  border: 1px solid rgba(0, 82, 136, 0.14);
+  color: var(--express-dark);
+  font-family: var(--font-display-family), "Arial Narrow", sans-serif;
+  font-weight: 800;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+}
+.client-mark img { width: 100%; height: 100%; object-fit: contain; background: white; display: block; }
+.celebration-card .client-mark { margin: 0 auto 10px; font-size: 1.4rem; }
+.logo-upload { display: flex; align-items: center; gap: 14px; }
+.logo-upload-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.logo-upload-actions .hint { margin: 0; flex-basis: 100%; }
 .card-kicker { margin: 0 0 4px; color: var(--express); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 .card-position, .compact-position { margin: 4px 0 0; font-weight: 700; font-size: 1.08rem; }
 .card-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }

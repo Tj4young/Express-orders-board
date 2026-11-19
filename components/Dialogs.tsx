@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { OFFICES, officeName, SHIFT_SUGGESTIONS } from "@/lib/offices";
 import { formatPhoenixISODate } from "@/lib/time";
 import type { OfficeId, Order, OrderInput } from "@/lib/types";
 
+import { ClientLogo } from "./ClientLogo";
+import { fileToLogo } from "./logo-file";
 import { useBoard } from "./BoardProvider";
 
 export function Dialogs() {
@@ -114,6 +116,9 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
   );
   const [dateOpened, setDateOpened] = useState(order?.dateOpened ?? formatPhoenixISODate(new Date()));
   const [notes, setNotes] = useState(order?.notes ?? "");
+  const [logo, setLogo] = useState<string | null>(order?.logo ?? null);
+  const [logoError, setLogoError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -137,6 +142,7 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
       recruiterId,
       dateOpened,
       notes,
+      logo,
     };
     setBusy(true);
     setError("");
@@ -244,6 +250,45 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
           Notes
           <textarea value={notes} maxLength={500} rows={3} onChange={(event) => setNotes(event.target.value)} />
         </label>
+        <div className="field wide">
+          <span>Client logo</span>
+          <div className="logo-upload" data-testid="logo-upload">
+            <ClientLogo client={client || "Client"} logo={logo} size={64} />
+            <div className="logo-upload-actions">
+              <input
+                ref={fileRef}
+                type="file"
+                className="sr-only"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  setLogoError("");
+                  void fileToLogo(file)
+                    .then(setLogo)
+                    .catch((reason: unknown) => {
+                      setLogoError(reason instanceof Error ? reason.message : "Couldn't use that logo.");
+                    });
+                }}
+              />
+              <button className="btn btn-ghost" type="button" onClick={() => fileRef.current?.click()}>
+                {logo ? "Replace logo" : "Upload logo"}
+              </button>
+              {logo && (
+                <button className="btn btn-ghost" type="button" onClick={() => setLogo(null)}>
+                  Remove
+                </button>
+              )}
+              <p className="hint">PNG, JPG, WebP, or SVG. A phone photo is resized automatically.</p>
+            </div>
+          </div>
+          {logoError && (
+            <p className="form-error" role="alert">
+              {logoError}
+            </p>
+          )}
+        </div>
       </div>
       {error && (
         <p className="form-error" role="alert">
