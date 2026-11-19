@@ -117,6 +117,7 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
   const [dateOpened, setDateOpened] = useState(order?.dateOpened ?? formatPhoenixISODate(new Date()));
   const [notes, setNotes] = useState(order?.notes ?? "");
   const [logo, setLogo] = useState<string | null>(order?.logo ?? null);
+  const [preparingLogo, setPreparingLogo] = useState(false);
   const [logoError, setLogoError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
@@ -131,6 +132,10 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
   }, [recruiters, formOffice]);
 
   const submit = async () => {
+    if (preparingLogo) {
+      setError("The photo is still being prepared. Wait until it appears, then save.");
+      return;
+    }
     const input: OrderInput = {
       office: formOffice,
       client,
@@ -165,6 +170,11 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
     >
       <p className="eyebrow">{order ? "Edit order" : "New order"}</p>
       <h2>{order ? `${order.position}` : "Add an open order"}</h2>
+      {(error || logoError) && (
+        <p className="form-error" role="alert">
+          {error || logoError}
+        </p>
+      )}
       <div className="form-grid">
         <label className="field">
           Office
@@ -265,15 +275,19 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
                   event.target.value = "";
                   if (!file) return;
                   setLogoError("");
+                  setError("");
+                  setPreparingLogo(true);
                   void fileToLogo(file)
                     .then(setLogo)
                     .catch((reason: unknown) => {
+                      setLogo(null);
                       setLogoError(reason instanceof Error ? reason.message : "Couldn't use that logo.");
-                    });
+                    })
+                    .finally(() => setPreparingLogo(false));
                 }}
               />
-              <button className="btn btn-ghost" type="button" onClick={() => fileRef.current?.click()}>
-                {logo ? "Replace logo" : "Upload logo"}
+              <button className="btn btn-ghost" type="button" onClick={() => fileRef.current?.click()} disabled={preparingLogo}>
+                {preparingLogo ? "Preparing photo…" : logo ? "Replace logo" : "Upload logo"}
               </button>
               {logo && (
                 <button className="btn btn-ghost" type="button" onClick={() => setLogo(null)}>
@@ -299,8 +313,8 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
         <button className="btn btn-ghost" type="button" onClick={closeDialog}>
           Cancel
         </button>
-        <button className="btn btn-primary" type="submit" disabled={busy}>
-          {busy ? "Saving…" : order ? "Save changes" : "Add order"}
+        <button className="btn btn-primary" type="submit" disabled={busy || preparingLogo}>
+          {preparingLogo ? "Preparing photo…" : busy ? "Saving…" : order ? "Save changes" : "Add order"}
         </button>
       </div>
     </form>

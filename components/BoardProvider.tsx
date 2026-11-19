@@ -12,6 +12,16 @@ const PASSCODE_KEY = "express-orders-passcode";
 const SOUND_KEY = "express-orders-sound";
 const POLL_MS = 2500;
 
+function assertLogoSaved(input: OrderInput, state: BoardState | undefined) {
+  if (!input.logo) return;
+  const saved = [...(state?.orders ?? [])]
+    .reverse()
+    .find((order) => order.client === input.client && order.position === input.position && order.office === input.office);
+  if (saved?.logo !== input.logo) {
+    throw new Error("The order saved, but the logo didn't stick. Try a smaller photo.");
+  }
+}
+
 export type DialogState =
   | { type: "order"; order: Order | null; office: OfficeId }
   | { type: "recruiters" }
@@ -245,15 +255,26 @@ function useBoardController(): BoardController {
     if (init?.body) headers.set("Content-Type", "application/json");
     if (passcodeRef.current) headers.set("x-team-passcode", passcodeRef.current);
     const response = await fetch(path, { ...init, headers, cache: "no-store" });
-    const body = (await response.json().catch(() => ({}))) as MutationBody & { error?: string };
+    const raw = await response.text();
+    let body: Partial<MutationBody> & { error?: string } = {};
+    try {
+      body = raw ? (JSON.parse(raw) as MutationBody & { error?: string }) : {};
+    } catch {
+      body = {
+        error:
+          response.status === 413
+            ? "That photo is too big to save. Use a smaller image."
+            : "The save didn't come back in one piece. Try the photo again.",
+      };
+    }
     if (response.status === 401) {
       passcodeRef.current = "";
       window.localStorage.removeItem(PASSCODE_KEY);
       setUnlocked(false);
       setDialog({ type: "unlock" });
     }
-    if (!response.ok) throw new Error(body.error || "That didn't save. Try again.");
-    return body;
+    if (!response.ok || !body.state) throw new Error(body.error || "That didn't save. Try again.");
+    return body as MutationBody;
   }, []);
 
   const mutate = useCallback(
@@ -342,6 +363,7 @@ function useBoardController(): BoardController {
   const createOrder = useCallback(
     async (input: OrderInput) => {
       await mutate("/api/orders", { method: "POST", body: JSON.stringify(input) }, (body) => {
+        assertLogoSaved(input, body.state);
         applyState(body.state, body.celebration ?? null, true);
         setDialog(null);
         if (!body.celebration) flash({ message: `Added ${input.position} at ${input.client}.` });
@@ -353,6 +375,10 @@ function useBoardController(): BoardController {
   const updateOrder = useCallback(
     async (id: string, input: OrderInput) => {
       await mutate(`/api/orders/${id}`, { method: "PATCH", body: JSON.stringify(input) }, (body) => {
+        const saved = body.state.orders.find((order) => order.id === id);
+        if (input.logo && saved?.logo !== input.logo) {
+          throw new Error("The order saved, but the logo didn't stick. Try a smaller photo.");
+        }
         applyState(body.state, body.celebration ?? null, true);
         setDialog(null);
         if (!body.celebration) flash({ message: `Saved ${input.position} at ${input.client}.` });

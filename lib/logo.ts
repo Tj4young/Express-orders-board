@@ -1,6 +1,7 @@
 const MAX_LOGO_CHARS = 70_000;
 
-const LOGO_PATTERN = /^data:image\/(png|jpeg|webp|svg\+xml);base64,[a-z0-9+/=]+$/i;
+const LOGO_PATTERN =
+  /^data:image\/(png|jpe?g|webp|svg\+xml)(?:;charset=[^;,]+)?;base64,[a-z0-9+/=]+$/i;
 
 export function clientInitials(client: string): string {
   const words = client
