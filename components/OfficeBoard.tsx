@@ -7,10 +7,12 @@ import { placementBreakdown } from "@/lib/credit";
 import { matchesFilters, sortOrders, spotsLeft, type SortKey } from "@/lib/filters";
 import { OFFICES } from "@/lib/offices";
 import { formatRate, plural, scoreBoard } from "@/lib/scoring";
-import { formatPhoenixISODate } from "@/lib/time";
+import { formatPhoenixISODate, isAging } from "@/lib/time";
 import type { OfficeId, Order } from "@/lib/types";
 
+import { ArizonaMap } from "./ArizonaMap";
 import { useBoard } from "./BoardProvider";
+import { FillsChart, KpiRow, OfficeCompare } from "./DashboardPanels";
 import { Filters } from "./Filters";
 import { OrderCard } from "./OrderCard";
 import { SiteHeader } from "./SiteHeader";
@@ -74,7 +76,7 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
   const mine = scores ? scores[office] : null;
   const other = scores ? scores[rival] : null;
   const spots = active.reduce((sum, order) => sum + spotsLeft(order), 0);
-  const agingCount = today ? active.filter((order) => today && order.dateOpened <= addDaysSafe(today, -14)).length : 0;
+  const agingCount = today ? active.filter((order) => isAging(order.dateOpened, today, order.dateFilled)).length : 0;
   const wins = useMemo(() => {
     if (!state) return [];
     return state.orders
@@ -133,24 +135,47 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
           </div>
         </div>
 
-        <section className="stats" aria-label="Office snapshot">
-          <article className="stat">
-            <strong>{active.length}</strong>
-            <span>Open orders</span>
-          </article>
-          <article className="stat">
-            <strong>{spots}</strong>
-            <span>Spots left</span>
-          </article>
-          <article className="stat">
-            <strong>{mine ? mine.weekHeads : "—"}</strong>
-            <span>Heads this week</span>
-          </article>
-          <article className={`stat${agingCount > 0 ? " is-aging" : ""}`}>
-            <strong>{today ? agingCount : "—"}</strong>
-            <span>Aging 14+ days</span>
-          </article>
-        </section>
+        <KpiRow
+          items={[
+            { label: "Open orders", value: String(active.length), hint: info.short },
+            { label: "Headcount needed", value: String(spots), hint: "Spots still open" },
+            { label: "Filled this month", value: mine ? String(mine.monthOrders) : "—", hint: mine ? `${mine.monthHeads} heads` : "Arizona time" },
+            { label: "Aging orders", value: today ? String(agingCount) : "—", hint: "Open 14+ days", tone: agingCount > 0 ? "aging" : undefined },
+            {
+              label: "Office leader",
+              value: !scores ? "—" : scores.leader === "tie" ? "Tied" : OFFICES[scores.leader].short,
+              hint: "This month",
+              tone: "lead",
+            },
+          ]}
+        />
+        {state && now && scores && (
+          <section className="office-widgets">
+            <div className="widget widget-map">
+              <header>
+                <h2>Arizona</h2>
+                <span>{info.short} on the map</span>
+              </header>
+              <ArizonaMap
+                compact
+                tempe={{
+                  open: state.orders.filter((order) => order.office === "tempe" && !order.dateFilled).length,
+                  month: scores.tempe.monthHeads,
+                }}
+                mesa={{
+                  open: state.orders.filter((order) => order.office === "mesa" && !order.dateFilled).length,
+                  month: scores.mesa.monthHeads,
+                }}
+                pulse={celebration?.office ?? null}
+              />
+            </div>
+            <FillsChart state={state} now={now} office={office} />
+            <OfficeCompare
+              tempe={{ label: "Tempe", heads: scores.tempe.monthHeads }}
+              mesa={{ label: "Mesa", heads: scores.mesa.monthHeads }}
+            />
+          </section>
+        )}
 
         {state && (
           <Filters
@@ -247,13 +272,6 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
       </main>
     </div>
   );
-}
-
-function addDaysSafe(iso: string, days: number) {
-  const [year, month, day] = iso.split("-").map(Number);
-  const utc = new Date(Date.UTC(year, month - 1, day));
-  utc.setUTCDate(utc.getUTCDate() + days);
-  return utc.toISOString().slice(0, 10);
 }
 
 function isFresh(order: Order, now: Date | null) {

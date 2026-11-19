@@ -6,16 +6,18 @@ import { placementBreakdown } from "@/lib/credit";
 import { matchesFilters, sortOrders, spotsLeft, type SortKey } from "@/lib/filters";
 import { OFFICE_IDS, OFFICES } from "@/lib/offices";
 import { formatRate, plural, scoreBoard, type OfficeScore } from "@/lib/scoring";
-import { formatClock, formatPhoenixISODate } from "@/lib/time";
+import { formatClock, formatPhoenixISODate, isAging } from "@/lib/time";
 
+import { ArizonaMap } from "./ArizonaMap";
 import { useBoard } from "./BoardProvider";
+import { FillsChart, KpiRow, OfficeCompare } from "./DashboardPanels";
 import { Filters } from "./Filters";
 import { IconTrophy } from "./icons";
 import { CompactOrder } from "./OrderCard";
 import { SiteHeader } from "./SiteHeader";
 
 export function BattleView() {
-  const { state, now, loading, loadError, online } = useBoard();
+  const { state, now, loading, loadError, online, celebration } = useBoard();
   const [recruiterId, setRecruiterId] = useState("all");
   const [shift, setShift] = useState("all");
   const [sort, setSort] = useState<SortKey>("oldest");
@@ -46,6 +48,69 @@ export function BattleView() {
             </div>
           ) : (
             <>
+              <KpiRow
+                items={[
+                  {
+                    label: "Open orders",
+                    value: String(state.orders.filter((order) => !order.dateFilled).length),
+                    hint: "Both desks",
+                  },
+                  {
+                    label: "Headcount needed",
+                    value: String(
+                      state.orders.filter((order) => !order.dateFilled).reduce((sum, order) => sum + spotsLeft(order), 0),
+                    ),
+                    hint: "Spots still open",
+                  },
+                  {
+                    label: "Filled this month",
+                    value: String(scores.tempe.monthOrders + scores.mesa.monthOrders),
+                    hint: `${scores.tempe.monthHeads + scores.mesa.monthHeads} heads`,
+                  },
+                  {
+                    label: "Aging orders",
+                    value: String(
+                      today
+                        ? state.orders.filter((order) => !order.dateFilled && isAging(order.dateOpened, today, null)).length
+                        : 0,
+                    ),
+                    hint: "Open 14+ days",
+                    tone: "aging",
+                  },
+                  {
+                    label: "Office leader",
+                    value: scores.leader === "tie" ? "Tied" : OFFICES[scores.leader].short,
+                    hint: "This month",
+                    tone: "lead",
+                  },
+                ]}
+              />
+              <section className="dash-hero">
+                <div className="widget widget-map">
+                  <header>
+                    <h2>Arizona</h2>
+                    <span>Glow tracks open orders and fills this month</span>
+                  </header>
+                  <ArizonaMap
+                    tempe={{
+                      open: state.orders.filter((order) => order.office === "tempe" && !order.dateFilled).length,
+                      month: scores.tempe.monthHeads,
+                    }}
+                    mesa={{
+                      open: state.orders.filter((order) => order.office === "mesa" && !order.dateFilled).length,
+                      month: scores.mesa.monthHeads,
+                    }}
+                    pulse={celebration?.office ?? null}
+                  />
+                </div>
+                <div className="dash-side">
+                  <FillsChart state={state} now={now ?? new Date()} />
+                  <OfficeCompare
+                    tempe={{ label: "Tempe", heads: scores.tempe.monthHeads }}
+                    mesa={{ label: "Mesa", heads: scores.mesa.monthHeads }}
+                  />
+                </div>
+              </section>
               <section className="battle-scores" aria-label="Tempe versus Mesa">
                 <ScorePanel
                   score={scores.tempe}
