@@ -44,8 +44,9 @@ test("file storage keeps fills across reads and parallel clicks", async () => {
     assert.equal(order.filled, 5);
     assert.ok(order.dateFilled);
     assert.equal(state.fillEvents.length, 5);
-    assert.equal(state.celebrations.length, 1);
-    assert.equal(state.celebrations[0].client, "ACME");
+    assert.equal(state.celebrations.length, 5);
+    assert.equal(state.celebrations.filter((item) => item.kind === "fill").length, 4);
+    assert.equal(state.celebrations.find((item) => item.kind === "filled")?.client, "ACME");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

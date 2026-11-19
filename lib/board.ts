@@ -116,9 +116,11 @@ export function parseRecruiterInput(body: unknown): RecruiterInput {
   return { name, office };
 }
 
-function celebrationFor(order: Order, state: BoardState, now: Date, id: () => string): Celebration {
-  const ids = contributorIds(state, order.id);
-  const names = ids.map((recruiterId) => recruiterDisplayName(state, recruiterId));
+function contributorNames(state: BoardState, orderId: string): string[] {
+  return contributorIds(state, orderId).map((recruiterId) => recruiterDisplayName(state, recruiterId));
+}
+
+function celebrationBase(order: Order, state: BoardState, now: Date, id: () => string): Celebration {
   return {
     id: id(),
     orderId: order.id,
@@ -127,9 +129,89 @@ function celebrationFor(order: Order, state: BoardState, now: Date, id: () => st
     client: order.client,
     position: order.position,
     recruiterName: recruiterDisplayName(state, order.recruiterId),
-    contributors: names,
+    contributors: contributorNames(state, order.id),
     at: now.toISOString(),
+    filled: order.filled,
+    openings: order.openings,
   };
+}
+
+function refreshCelebrations(state: BoardState, order: Order) {
+  const names = contributorNames(state, order.id);
+  for (const item of state.celebrations) {
+    if (item.orderId !== order.id) continue;
+    item.office = order.office;
+    item.officeName = officeName(order.office);
+    item.client = order.client;
+    item.position = order.position;
+    item.recruiterName = recruiterDisplayName(state, order.recruiterId);
+    item.contributors = names;
+    item.openings = order.openings;
+    if (item.placedById) item.placedBy = recruiterDisplayName(state, item.placedById);
+  }
+}
+
+/** Drop celebrations that describe a fill count or a completion the order no longer has. */
+function dropStaleCelebrations(state: BoardState, order: Order) {
+  const complete = order.filled >= order.openings;
+  state.celebrations = state.celebrations.filter((item) => {
+    if (item.orderId !== order.id) return true;
+    if (item.kind !== "fill") return complete;
+    return typeof item.filled !== "number" || item.filled <= order.filled;
+  });
+}
+
+function pushFillCelebration(
+  state: BoardState,
+  order: Order,
+  recruiterId: string,
+  added: number,
+  now: Date,
+  id: () => string,
+): Celebration {
+  const celebration: Celebration = {
+    ...celebrationBase(order, state, now, id),
+    kind: "fill",
+    added,
+    placedById: recruiterId,
+    placedBy: recruiterDisplayName(state, recruiterId),
+  };
+  state.celebrations.push(celebration);
+  return celebration;
+}
+
+function pushFilledCelebration(state: BoardState, order: Order, now: Date, id: () => string): Celebration {
+  const celebration: Celebration = {
+    ...celebrationBase(order, state, now, id),
+    kind: "filled",
+  };
+  state.celebrations.push(celebration);
+  return celebration;
+}
+
+/**
+ * One celebration per mutation. A fill that closes the order gets the order-filled
+ * celebration. Any other new fills share a single placement celebration. Undo never
+ * arrives here with added fills.
+ */
+function settleCelebrations(
+  state: BoardState,
+  order: Order,
+  wasComplete: boolean,
+  now: Date,
+  id: () => string,
+  added: { recruiterId: string; count: number } | null,
+): Celebration | null {
+  const complete = order.filled >= order.openings;
+  if (complete && !wasComplete) order.dateFilled = now.toISOString();
+  else if (!complete) order.dateFilled = null;
+
+  dropStaleCelebrations(state, order);
+  refreshCelebrations(state, order);
+
+  if (complete && !wasComplete) return pushFilledCelebration(state, order, now, id);
+  if (added && added.count > 0) return pushFillCelebration(state, order, added.recruiterId, added.count, now, id);
+  return null;
 }
 
 function pushFill(state: BoardState, order: Order, recruiterId: string, now: Date, id: () => string) {
@@ -145,11 +227,15 @@ function pushFill(state: BoardState, order: Order, recruiterId: string, now: Dat
   state.fillEvents.push(event);
 }
 
-function syncFills(state: BoardState, order: Order, now: Date, id: () => string) {
+/** Returns how many fill events were added. Removals return 0. */
+function syncFills(state: BoardState, order: Order, now: Date, id: () => string): number {
   const current = state.fillEvents.filter((event) => event.orderId === order.id).length;
   if (order.filled > current) {
-    for (let i = 0; i < order.filled - current; i += 1) pushFill(state, order, order.recruiterId, now, id);
-  } else if (order.filled < current) {
+    const added = order.filled - current;
+    for (let i = 0; i < added; i += 1) pushFill(state, order, order.recruiterId, now, id);
+    return added;
+  }
+  if (order.filled < current) {
     let extra = current - order.filled;
     for (let i = state.fillEvents.length - 1; i >= 0 && extra > 0; i -= 1) {
       if (state.fillEvents[i].orderId === order.id) {
@@ -158,39 +244,7 @@ function syncFills(state: BoardState, order: Order, now: Date, id: () => string)
       }
     }
   }
-}
-
-function finishIfNeeded(
-  state: BoardState,
-  order: Order,
-  wasComplete: boolean,
-  now: Date,
-  id: () => string,
-): Celebration | null {
-  const complete = order.filled >= order.openings;
-  if (complete && !wasComplete) {
-    order.dateFilled = now.toISOString();
-    const celebration = celebrationFor(order, state, now, id);
-    state.celebrations.push(celebration);
-    return celebration;
-  }
-  if (!complete) {
-    order.dateFilled = null;
-    state.celebrations = state.celebrations.filter((item) => item.orderId !== order.id);
-    return null;
-  }
-  order.dateFilled = order.dateFilled;
-  for (const item of state.celebrations) {
-    if (item.orderId === order.id) {
-      item.office = order.office;
-      item.officeName = officeName(order.office);
-      item.client = order.client;
-      item.position = order.position;
-      item.recruiterName = recruiterDisplayName(state, order.recruiterId);
-      item.contributors = contributorIds(state, order.id).map((recruiterId) => recruiterDisplayName(state, recruiterId));
-    }
-  }
-  return null;
+  return 0;
 }
 
 function trim(state: BoardState) {
@@ -218,8 +272,15 @@ export function createOrder(state: BoardState, input: OrderInput, clock: Clock):
     updatedAt: clock.now.toISOString(),
   };
   next.orders.push(order);
-  for (let i = 0; i < order.filled; i += 1) pushFill(next, order, order.recruiterId, clock.now, clock.id);
-  const celebration = finishIfNeeded(next, order, false, clock.now, clock.id);
+  const added = syncFills(next, order, clock.now, clock.id);
+  const celebration = settleCelebrations(
+    next,
+    order,
+    false,
+    clock.now,
+    clock.id,
+    added > 0 ? { recruiterId: order.recruiterId, count: added } : null,
+  );
   touch(next, clock.now);
   return { state: next, celebration };
 }
@@ -241,8 +302,15 @@ export function updateOrder(state: BoardState, orderId: string, input: OrderInpu
   order.notes = input.notes;
   order.logo = input.logo;
   order.updatedAt = clock.now.toISOString();
-  syncFills(next, order, clock.now, clock.id);
-  const celebration = finishIfNeeded(next, order, wasComplete, clock.now, clock.id);
+  const added = syncFills(next, order, clock.now, clock.id);
+  const celebration = settleCelebrations(
+    next,
+    order,
+    wasComplete,
+    clock.now,
+    clock.id,
+    added > 0 ? { recruiterId: order.recruiterId, count: added } : null,
+  );
   touch(next, clock.now);
   return { state: next, celebration };
 }
@@ -275,8 +343,12 @@ export function fillOrder(
     const wasComplete = Boolean(order.dateFilled);
     order.filled += 1;
     order.updatedAt = clock.now.toISOString();
-    pushFill(next, order, placedBy ?? order.recruiterId, clock.now, clock.id);
-    const celebration = finishIfNeeded(next, order, wasComplete, clock.now, clock.id);
+    const recruiterId = placedBy ?? order.recruiterId;
+    pushFill(next, order, recruiterId, clock.now, clock.id);
+    const celebration = settleCelebrations(next, order, wasComplete, clock.now, clock.id, {
+      recruiterId,
+      count: 1,
+    });
     touch(next, clock.now);
     return { state: next, celebration };
   }
@@ -290,10 +362,9 @@ export function fillOrder(
       break;
     }
   }
-  if (order.dateFilled) {
-    order.dateFilled = null;
-    next.celebrations = next.celebrations.filter((item) => item.orderId !== order.id);
-  }
+  if (order.filled < order.openings) order.dateFilled = null;
+  dropStaleCelebrations(next, order);
+  refreshCelebrations(next, order);
   touch(next, clock.now);
   return { state: next, celebration: null };
 }
@@ -326,10 +397,11 @@ export function updateRecruiter(
     if (item.orderId && next.orders.some((order) => order.id === item.orderId && order.recruiterId === recruiterId)) {
       item.recruiterName = input.name;
     }
+    if (item.placedById === recruiterId) item.placedBy = input.name;
     if (item.contributors?.length) {
       const ids = contributorIds(next, item.orderId);
       if (ids.includes(recruiterId)) {
-        item.contributors = ids.map((id) => recruiterDisplayName(next, id));
+        item.contributors = ids.map((personId) => recruiterDisplayName(next, personId));
       }
     }
   }

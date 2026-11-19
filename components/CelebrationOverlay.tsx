@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { formatNameList } from "@/lib/credit";
+import { fillCelebrationTitle, formatNameList } from "@/lib/credit";
 import { formatPrettyDateTime } from "@/lib/time";
 
 import { ClientLogo } from "./ClientLogo";
@@ -23,8 +23,8 @@ type Particle = {
   gravity: number;
 };
 
-function makeBurst(width: number, height: number): Particle[] {
-  return Array.from({ length: 180 }, () => {
+function makeBurst(width: number, height: number, count: number): Particle[] {
+  return Array.from({ length: count }, () => {
     const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.35;
     const speed = 5 + Math.random() * 9;
     return {
@@ -87,7 +87,9 @@ export function CelebrationOverlay() {
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     resize();
-    particles = makeBurst(canvas.offsetWidth, canvas.offsetHeight);
+    const orderFilled = celebration.kind !== "fill";
+    const burst = orderFilled ? 180 : 120;
+    particles = makeBurst(canvas.offsetWidth, canvas.offsetHeight, burst);
 
     let raf = 0;
     const draw = () => {
@@ -95,7 +97,7 @@ export function CelebrationOverlay() {
       const height = canvas.offsetHeight;
       context.clearRect(0, 0, width, height);
       if (frame === 8 || frame === 18) {
-        particles.push(...makeBurst(width, height).slice(0, 40));
+        particles.push(...makeBurst(width, height, orderFilled ? 40 : 28));
       }
       for (const particle of particles) {
         particle.vy += particle.gravity;
@@ -122,22 +124,37 @@ export function CelebrationOverlay() {
 
   if (!celebration) return null;
 
+  const orderFilled = celebration.kind !== "fill";
+  const names = formatNameList(celebration.contributors?.length ? celebration.contributors : [celebration.recruiterName]);
+
   return (
     <div className="celebration" role="dialog" aria-modal="true" aria-labelledby="celebration-title" data-testid="celebration">
       {!reduced && <canvas ref={canvasRef} className="confetti" />}
-      <div className="celebration-card">
+      <div
+        className={orderFilled ? "celebration-card is-complete" : "celebration-card is-fill"}
+        data-celebration-kind={orderFilled ? "filled" : "fill"}
+      >
         <ClientLogo
           client={celebration.client}
           logo={state?.orders.find((order) => order.id === celebration.orderId)?.logo}
-          size={76}
+          size={orderFilled ? 76 : 64}
         />
-        <p className="celebration-kicker">Order filled</p>
+        <p className="celebration-kicker">{orderFilled ? "Order filled" : "New fill"}</p>
         <h2 id="celebration-title">
-          🎉 {celebration.officeName} filled {celebration.position} at {celebration.client}!
+          {orderFilled
+            ? `🎉 ${celebration.officeName} filled ${celebration.position} at ${celebration.client}!`
+            : fillCelebrationTitle(celebration)}
         </h2>
         <p className="celebration-sub">
-          Placed by {formatNameList(celebration.contributors?.length ? celebration.contributors : [celebration.recruiterName])} ·{" "}
-          {formatPrettyDateTime(celebration.at)}
+          {orderFilled ? (
+            <>
+              Placed by {names} · {formatPrettyDateTime(celebration.at)}
+            </>
+          ) : (
+            <>
+              {celebration.officeName} · {formatPrettyDateTime(celebration.at)}
+            </>
+          )}
         </p>
         <div className="celebration-actions">
           {unlocked && (
