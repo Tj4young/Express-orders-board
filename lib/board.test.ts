@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { addExampleOrder, createInitialState, createOrder, deleteOrder, deleteRecruiter, fillOrder, normalizeState, parseOrderInput, updateOrder, type Clock } from "./board";
@@ -37,6 +38,24 @@ function input(overrides: Partial<OrderInput> = {}): OrderInput {
     ...overrides,
   };
 }
+
+test("editing an order keeps the Avnet logo and a later edit can remove it", () => {
+  const png = readFileSync(new URL("../fixtures/avnet1.png", import.meta.url));
+  const logo = `data:image/png;base64,${png.toString("base64")}`;
+  const timer = clock();
+  let state = createInitialState(NOW);
+  state = createOrder(state, input(), timer).state;
+  const id = state.orders[0].id;
+
+  state = updateOrder(state, id, input({ client: "Avnet", logo }), timer).state;
+  assert.equal(state.orders.find((order) => order.id === id)?.logo, logo);
+  assert.equal(state.orders.find((order) => order.id === id)?.client, "Avnet");
+
+  state = updateOrder(state, id, input({ client: "Avnet", position: "Buyer", logo: null }), timer).state;
+  const saved = state.orders.find((order) => order.id === id);
+  assert.equal(saved?.logo, null);
+  assert.equal(saved?.position, "Buyer");
+});
 
 test("a new board has the desk and no orders", () => {
   const state = createInitialState(NOW);
