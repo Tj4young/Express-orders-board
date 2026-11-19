@@ -89,22 +89,21 @@ a { color: var(--express); }
 }
 
 .wordmark {
-  color: white;
-  text-decoration: none;
-  line-height: 0.85;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  flex: 0 0 auto;
+  background: #fff;
+  border-radius: 12px;
+  padding: 6px 12px 5px;
+  line-height: 0;
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(0, 40, 80, 0.16);
 }
-.wordmark-express {
-  font-size: 2rem;
-  font-weight: 800;
-  letter-spacing: 0.01em;
-}
-.wordmark-sub {
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+.wordmark img {
+  display: block;
+  height: 48px;
+  width: auto;
+  max-width: min(280px, 52vw);
 }
 
 .header-title {
@@ -611,11 +610,13 @@ a { color: var(--express); }
   .page-intro, .recruiter-list li, .recruiter-add { display: flex; flex-direction: column; align-items: stretch; }
   .intro-actions { justify-content: flex-start; }
   .order-grid, .win-row, .stats, .form-grid { grid-template-columns: 1fr; }
-  .wordmark-express { font-size: 1.6rem; }
+  .wordmark { padding: 4px 8px 3px; border-radius: 10px; }
+  .wordmark img { height: 36px; }
 }
 
 @media (min-width: 1600px) {
   body { font-size: 18px; }
+  .wordmark img { height: 58px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
