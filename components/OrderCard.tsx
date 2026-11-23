@@ -21,6 +21,7 @@ type CardProps = {
   onUndo: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onCompetitor: () => void;
 };
 
 export function OrderCard({
@@ -36,9 +37,11 @@ export function OrderCard({
   onUndo,
   onEdit,
   onDelete,
+  onCompetitor,
 }: CardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const aging = today ? isAging(order.dateOpened, today, order.dateFilled) : false;
+  const [confirmCompetitor, setConfirmCompetitor] = useState(false);
+  const aging = today ? isAging(order.dateOpened, today, order.dateFilled, order.competitorFilledAt) : false;
   const days = today ? calendarDaysBetween(order.dateOpened, today) : 0;
   const left = spotsLeft(order);
   const pct = order.openings === 0 ? 0 : Math.min(100, Math.round((order.filled / order.openings) * 100));
@@ -105,35 +108,72 @@ export function OrderCard({
       )}
       {!readOnly && (
         <div className="card-actions">
-          {!exiting && order.filled < order.openings && (
-            <button className="btn btn-fill" type="button" data-testid="fill-button" disabled={pending} onClick={onFill}>
-              +1 Filled
-            </button>
-          )}
-          <div className="card-secondary">
-            {order.filled > 0 && (
-              <button className="btn btn-ghost" type="button" data-testid="undo-button" disabled={pending} onClick={onUndo}>
-                Undo
-              </button>
-            )}
-            <button className="btn btn-ghost" type="button" disabled={pending} onClick={onEdit}>
-              Edit
-            </button>
-            {confirmDelete ? (
-              <>
-                <button className="btn btn-danger" type="button" disabled={pending} onClick={onDelete}>
-                  Delete
+          {confirmCompetitor ? (
+            <div className="competitor-confirm" role="group" aria-label="Confirm competitor filled" data-testid="competitor-confirm">
+              <p>
+                <strong>Competitor filled?</strong>
+                This order leaves the board. It is not a win: no confetti, and the openings still empty get no credit.
+                Placements already made keep their credit.
+              </p>
+              <div className="card-secondary">
+                <button
+                  className="btn btn-competitor"
+                  type="button"
+                  data-testid="competitor-confirm-button"
+                  disabled={pending}
+                  onClick={onCompetitor}
+                >
+                  Yes, competitor filled
                 </button>
-                <button className="btn btn-ghost" type="button" onClick={() => setConfirmDelete(false)}>
+                <button className="btn btn-ghost" type="button" disabled={pending} onClick={() => setConfirmCompetitor(false)}>
                   Cancel
                 </button>
-              </>
-            ) : (
-              <button className="btn btn-ghost" type="button" onClick={() => setConfirmDelete(true)}>
-                Delete
-              </button>
-            )}
-          </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {!exiting && order.filled < order.openings && (
+                <button className="btn btn-fill" type="button" data-testid="fill-button" disabled={pending} onClick={onFill}>
+                  +1 Filled
+                </button>
+              )}
+              <div className="card-secondary">
+                {order.filled > 0 && (
+                  <button className="btn btn-ghost" type="button" data-testid="undo-button" disabled={pending} onClick={onUndo}>
+                    Undo
+                  </button>
+                )}
+                <button className="btn btn-ghost" type="button" disabled={pending} onClick={onEdit}>
+                  Edit
+                </button>
+                {confirmDelete ? (
+                  <>
+                    <button className="btn btn-danger" type="button" disabled={pending} onClick={onDelete}>
+                      Delete
+                    </button>
+                    <button className="btn btn-ghost" type="button" onClick={() => setConfirmDelete(false)}>
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button className="btn btn-ghost" type="button" onClick={() => setConfirmDelete(true)}>
+                    Delete
+                  </button>
+                )}
+              </div>
+              {!exiting && !order.dateFilled && !order.competitorFilledAt && (
+                <button
+                  className="btn btn-competitor"
+                  type="button"
+                  data-testid="competitor-button"
+                  disabled={pending}
+                  onClick={() => setConfirmCompetitor(true)}
+                >
+                  Competitor filled
+                </button>
+              )}
+            </>
+          )}
         </div>
       )}
     </article>
@@ -151,7 +191,7 @@ export function CompactOrder({
   credit?: string;
   today: string | null;
 }) {
-  const aging = today ? isAging(order.dateOpened, today, order.dateFilled) : false;
+  const aging = today ? isAging(order.dateOpened, today, order.dateFilled, order.competitorFilledAt) : false;
   const days = today ? calendarDaysBetween(order.dateOpened, today) : 0;
   const left = spotsLeft(order);
   const pct = order.openings === 0 ? 0 : Math.min(100, Math.round((order.filled / order.openings) * 100));

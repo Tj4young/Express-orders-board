@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { addExampleOrder, BoardError, createInitialState, createOrder, deleteOrder, deleteRecruiter, fillOrder, normalizeState, parseOrderInput, reopenOrder, updateOrder, updateRecruiter, type Clock } from "./board";
+import { addExampleOrder, BoardError, createInitialState, createOrder, deleteOrder, deleteRecruiter, fillOrder, markCompetitorFilled, normalizeState, parseOrderInput, reopenOrder, undoCompetitorFilled, updateOrder, updateRecruiter, type Clock } from "./board";
 import { fillCelebrationTitle } from "./credit";
 import { savedJobs } from "./filters";
 import { activeOrders, scoreBoard, wins } from "./scoring";
@@ -721,10 +721,14 @@ test("normalizeState keeps current open and filled orders, and reopen does not d
     updatedAt: "2026-11-12T15:00:00.000Z",
   };
   const loaded = normalizeState(stored);
+  assert.equal(loaded.schemaVersion, 2);
   assert.equal(loaded.orders.length, 2);
   assert.equal(loaded.orders.find((order) => order.id === "still-open")?.notes, "Keep this open order");
+  assert.equal(loaded.orders.find((order) => order.id === "still-open")?.competitorFilledAt, null);
   assert.equal(loaded.orders.find((order) => order.id === "already-filled")?.filled, 5);
+  assert.equal(loaded.orders.find((order) => order.id === "already-filled")?.competitorFilledAt, null);
   assert.equal(loaded.fillEvents.length, 1);
+  assert.equal(loaded.fillEvents[0]?.recruiterId, "rec_ivonne");
 
   const timer = clock("2026-11-23T16:00:00.000Z");
   const reopened = reopenOrder(loaded, "already-filled", timer);
@@ -744,6 +748,119 @@ test("normalizeState keeps current open and filled orders, and reopen does not d
   assert.equal(copy.openings, 5);
   assert.equal(reopened.state.fillEvents.some((event) => event.orderId === copy.id), false);
   assert.equal(normalizeState(reopened.state).orders.length, 3);
+});
+
+test("a competitor pull is not a win and keeps placements already made", () => {
+  const timer = clock("2026-11-18T18:00:00.000Z");
+  let state = createInitialState(NOW);
+  state = createOrder(state, input({ openings: 1, client: "Closed", dateOpened: "2026-11-02" }), timer).state;
+  const closedId = state.orders[0].id;
+  state = fillOrder(state, closedId, "increment", timer, "rec_ivonne").state;
+  assert.throws(() => markCompetitorFilled(state, closedId, timer), /already filled/);
+
+  state = createOrder(state, input({ openings: 5, client: "ACME", dateOpened: "2026-11-01" }), timer).state;
+  const acme = state.orders.find((order) => order.client === "ACME");
+  assert.ok(acme);
+  state = fillOrder(state, acme.id, "increment", timer, "rec_ivonne").state;
+  state = fillOrder(state, acme.id, "increment", timer, "rec_jane").state;
+
+  const before = scoreBoard(state, new Date("2026-11-18T18:00:00.000Z"));
+  const beforeFills = state.fillEvents.map((event) => event.id);
+  const beforeCelebrations = state.celebrations.map((item) => item.id);
+  assert.equal(before.tempe.monthHeads, 3);
+  assert.equal(before.tempe.monthOrders, 1);
+  assert.equal(before.tempe.monthFillRate, 0.5);
+  assert.equal(before.recruiters.find((person) => person.name === "Jane")?.monthHeads, 1);
+
+  timer.stamp("2026-11-18T20:00:00.000Z");
+  const marked = markCompetitorFilled(state, acme.id, timer);
+  assert.equal(marked.celebration, null);
+  const pulled = marked.state.orders.find((order) => order.id === acme.id);
+  assert.ok(pulled);
+  assert.equal(pulled.competitorFilledAt, "2026-11-18T20:00:00.000Z");
+  assert.equal(pulled.dateFilled, null);
+  assert.equal(pulled.filled, 2);
+  assert.equal(pulled.openings, 5);
+  assert.deepEqual(
+    marked.state.fillEvents.map((event) => event.id),
+    beforeFills,
+  );
+  assert.deepEqual(
+    marked.state.celebrations.map((item) => item.id),
+    beforeCelebrations,
+  );
+  assert.equal(marked.state.fillEvents.filter((event) => event.orderId === acme.id).length, 2);
+
+  const after = scoreBoard(marked.state, new Date("2026-11-18T18:00:00.000Z"));
+  assert.equal(after.tempe.monthHeads, before.tempe.monthHeads);
+  assert.equal(after.tempe.monthOrders, before.tempe.monthOrders);
+  assert.equal(after.tempe.weekOrders, before.tempe.weekOrders);
+  assert.equal(after.tempe.monthFillRate, before.tempe.monthFillRate);
+  assert.equal(after.recruiters.find((person) => person.name === "Jane")?.monthHeads, 1);
+  assert.equal(after.recruiters.find((person) => person.name === "Ivonne")?.monthHeads, 2);
+  assert.equal(after.recentWins.some((win) => win.orderId === acme.id), false);
+  assert.equal(after.recentWins.some((win) => win.client === "Closed"), true);
+  assert.equal(wins(marked.state).some((order) => order.id === acme.id), false);
+  assert.equal(activeOrders(marked.state).some((order) => order.id === acme.id), false);
+  assert.equal(activeOrders(marked.state).some((order) => order.id === closedId), false);
+  assert.deepEqual(
+    savedJobs(marked.state.orders, "tempe", "").map((order) => order.client),
+    ["ACME", "Closed"],
+  );
+  assert.deepEqual(savedJobs(marked.state.orders, "mesa", "").map((order) => order.id), []);
+
+  const later = scoreBoard(marked.state, new Date("2026-12-02T18:00:00.000Z"));
+  assert.equal(later.tempe.monthHeads, 0);
+  assert.equal(later.tempe.monthOrders, 0);
+  assert.equal(later.tempe.monthFillRate, null);
+
+  assert.throws(() => fillOrder(marked.state, acme.id, "increment", timer, "rec_ivonne"), /competitor filled/);
+  assert.throws(() => markCompetitorFilled(marked.state, acme.id, timer), /already marked/);
+  assert.throws(
+    () => updateOrder(marked.state, acme.id, input({ openings: 5, filled: 2, client: "ACME" }), timer),
+    /Undo competitor filled/,
+  );
+  assert.throws(() => undoCompetitorFilled(state, acme.id, timer), /not marked/);
+
+  const roundTrip = normalizeState(JSON.parse(JSON.stringify(marked.state)));
+  assert.equal(roundTrip.schemaVersion, 2);
+  assert.equal(roundTrip.orders.find((order) => order.id === acme.id)?.competitorFilledAt, pulled.competitorFilledAt);
+  assert.equal(roundTrip.fillEvents.filter((event) => event.orderId === acme.id).length, 2);
+  assert.equal(roundTrip.orders.find((order) => order.id === closedId)?.dateFilled, marked.state.orders.find((order) => order.id === closedId)?.dateFilled);
+
+  const undone = undoCompetitorFilled(marked.state, acme.id, timer);
+  assert.equal(undone.celebration, null);
+  assert.equal(undone.state.orders.find((order) => order.id === acme.id)?.competitorFilledAt, null);
+  assert.equal(undone.state.orders.find((order) => order.id === acme.id)?.filled, 2);
+  assert.equal(activeOrders(undone.state).some((order) => order.id === acme.id), true);
+  assert.equal(savedJobs(undone.state.orders, "tempe", "acme").length, 0);
+  const restored = scoreBoard(undone.state, new Date("2026-11-18T18:00:00.000Z"));
+  assert.equal(restored.tempe.monthHeads, before.tempe.monthHeads);
+  assert.equal(restored.tempe.monthOrders, before.tempe.monthOrders);
+  assert.equal(restored.tempe.monthFillRate, before.tempe.monthFillRate);
+
+  const again = markCompetitorFilled(undone.state, acme.id, timer).state;
+  timer.stamp("2026-11-19T17:00:00.000Z");
+  const reopened = reopenOrder(again, acme.id, timer);
+  assert.equal(reopened.celebration, null);
+  const copy = reopened.state.orders.find((order) => order.id !== acme.id && order.client === "ACME");
+  const original = reopened.state.orders.find((order) => order.id === acme.id);
+  assert.ok(copy);
+  assert.ok(original);
+  assert.equal(copy.filled, 0);
+  assert.equal(copy.competitorFilledAt, null);
+  assert.equal(copy.dateFilled, null);
+  assert.equal(copy.dateOpened, "2026-11-19");
+  assert.equal(original.filled, 2);
+  assert.equal(original.competitorFilledAt, "2026-11-18T20:00:00.000Z");
+  assert.equal(reopened.state.fillEvents.filter((event) => event.orderId === acme.id).length, 2);
+  assert.equal(reopened.state.fillEvents.some((event) => event.orderId === copy.id), false);
+  assert.equal(activeOrders(reopened.state).some((order) => order.id === copy.id), true);
+  assert.equal(activeOrders(reopened.state).some((order) => order.id === original.id), false);
+  assert.equal(wins(reopened.state).some((order) => order.id === original.id), false);
+  const reopenedScores = scoreBoard(reopened.state, new Date("2026-11-19T17:00:00.000Z"));
+  assert.equal(reopenedScores.tempe.monthHeads, before.tempe.monthHeads);
+  assert.equal(reopenedScores.tempe.monthOrders, before.tempe.monthOrders);
 });
 
 test("a tie on the month score stays a tie", () => {

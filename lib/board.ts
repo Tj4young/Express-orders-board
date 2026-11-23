@@ -267,6 +267,7 @@ export function createOrder(state: BoardState, input: OrderInput, clock: Clock):
     id: clock.id(),
     ...input,
     dateFilled: null,
+    competitorFilledAt: null,
     example: false,
     createdAt: clock.now.toISOString(),
     updatedAt: clock.now.toISOString(),
@@ -289,6 +290,9 @@ export function updateOrder(state: BoardState, orderId: string, input: OrderInpu
   const next = structuredClone(state);
   const order = next.orders.find((item) => item.id === orderId);
   if (!order) throw new BoardError("That order is no longer on the board.", 404);
+  if (order.competitorFilledAt && !order.dateFilled) {
+    throw new BoardError("Undo competitor filled before editing this order.");
+  }
   const wasComplete = Boolean(order.dateFilled);
   order.office = input.office;
   order.client = input.client;
@@ -337,6 +341,9 @@ export function fillOrder(
   const next = structuredClone(state);
   const order = next.orders.find((item) => item.id === orderId);
   if (!order) throw new BoardError("That order is no longer on the board.", 404);
+  if (order.competitorFilledAt) {
+    throw new BoardError("That order was marked competitor filled. Undo that before changing fills.");
+  }
 
   if (action === "increment") {
     if (order.filled >= order.openings) throw new BoardError("That order is already filled.");
@@ -370,14 +377,14 @@ export function fillOrder(
 }
 
 /**
- * Put a fresh copy of a filled job back on the board.
+ * Put a fresh copy of a saved job back on the board.
  * The original order, its fill events, and its celebrations stay as they are,
- * so Wins and the battle score keep the credit already earned.
+ * so a win keeps its credit and a competitor pull stays on the lost report.
  */
 export function reopenOrder(state: BoardState, orderId: string, clock: Clock): MutationResult {
   const source = state.orders.find((order) => order.id === orderId);
   if (!source) throw new BoardError("That order is no longer on the board.", 404);
-  if (!source.dateFilled) {
+  if (!source.dateFilled && !source.competitorFilledAt) {
     throw new BoardError("That job is still on the board. Reopen is for a filled job.");
   }
   if (!state.recruiters.some((person) => person.id === source.recruiterId)) {
@@ -397,6 +404,7 @@ export function reopenOrder(state: BoardState, orderId: string, clock: Clock): M
     recruiterId: source.recruiterId,
     dateOpened: formatPhoenixISODate(clock.now),
     dateFilled: null,
+    competitorFilledAt: null,
     notes: source.notes,
     logo: source.logo,
     example: false,
@@ -404,6 +412,41 @@ export function reopenOrder(state: BoardState, orderId: string, clock: Clock): M
     updatedAt: nowIso,
   };
   next.orders.push(copy);
+  touch(next, clock.now);
+  return { state: next, celebration: null };
+}
+
+/**
+ * A client pulled this order because a competitor filled it.
+ * The order leaves the active board. It is not a win: no celebration, no
+ * dateFilled stamp, and no fill events for openings that were still empty.
+ * Placements already on the order stay credited.
+ */
+export function markCompetitorFilled(state: BoardState, orderId: string, clock: Clock): MutationResult {
+  const next = structuredClone(state);
+  const order = next.orders.find((item) => item.id === orderId);
+  if (!order) throw new BoardError("That order is no longer on the board.", 404);
+  if (order.dateFilled) {
+    throw new BoardError("That order is already filled. Competitor filled is for an order still on the board.");
+  }
+  if (order.competitorFilledAt) throw new BoardError("That order is already marked competitor filled.");
+  const stamped = clock.now.toISOString();
+  order.competitorFilledAt = stamped;
+  order.updatedAt = stamped;
+  touch(next, clock.now);
+  return { state: next, celebration: null };
+}
+
+/** Put a mistaken competitor mark back on the active board. Drops it from the lost report. */
+export function undoCompetitorFilled(state: BoardState, orderId: string, clock: Clock): MutationResult {
+  const next = structuredClone(state);
+  const order = next.orders.find((item) => item.id === orderId);
+  if (!order) throw new BoardError("That order is no longer on the board.", 404);
+  if (!order.competitorFilledAt || order.dateFilled) {
+    throw new BoardError("That order is not marked competitor filled.");
+  }
+  order.competitorFilledAt = null;
+  order.updatedAt = clock.now.toISOString();
   touch(next, clock.now);
   return { state: next, celebration: null };
 }
@@ -496,6 +539,14 @@ export function addExampleOrder(state: BoardState, clock: Clock): BoardState {
   return created.state;
 }
 
+/** Keep a real timestamp. Orders saved before this field existed stay active. */
+function normalizeCompetitorFilledAt(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed || Number.isNaN(Date.parse(trimmed))) return null;
+  return new Date(trimmed).toISOString();
+}
+
 export function normalizeState(value: unknown): BoardState {
   if (!value || typeof value !== "object") return createInitialState();
   const raw = value as Partial<BoardState>;
@@ -504,6 +555,7 @@ export function normalizeState(value: unknown): BoardState {
   const orders = (Array.isArray(raw.orders) ? raw.orders : []).map((order) => ({
     ...order,
     logo: isSafeLogo(order.logo) ? order.logo : null,
+    competitorFilledAt: normalizeCompetitorFilledAt(order.competitorFilledAt),
   }));
   let fillEvents = Array.isArray(raw.fillEvents) ? raw.fillEvents : [];
   if (raw.schemaVersion !== 2) {

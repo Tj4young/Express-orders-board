@@ -1,3 +1,4 @@
+import { isSavedOrder, savedAt } from "./status";
 import type { OfficeId, Order } from "./types";
 
 export type SortKey = "oldest" | "openings";
@@ -29,11 +30,14 @@ export function matchesJobQuery(order: Pick<Order, "client" | "position">, query
   return terms.every((term) => haystack.includes(term));
 }
 
-/** Filled jobs for one office, newest fill first. Open orders are not included. */
+/**
+ * Filled jobs and competitor pulls for one office, newest first.
+ * Open orders are not included. A pull sorts by the day it was marked.
+ */
 export function savedJobs(orders: Order[], office: OfficeId, query: string): Order[] {
   return orders
-    .filter((order) => Boolean(order.dateFilled) && order.office === office && matchesJobQuery(order, query))
-    .sort((a, b) => (b.dateFilled ?? "").localeCompare(a.dateFilled ?? "") || b.createdAt.localeCompare(a.createdAt));
+    .filter((order) => isSavedOrder(order) && order.office === office && matchesJobQuery(order, query))
+    .sort((a, b) => savedAt(b).localeCompare(savedAt(a)) || b.createdAt.localeCompare(a.createdAt));
 }
 
 export function matchesFilters(

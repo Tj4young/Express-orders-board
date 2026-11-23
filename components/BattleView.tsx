@@ -6,6 +6,7 @@ import { placementBreakdown } from "@/lib/credit";
 import { matchesFilters, sortOrders, spotsLeft, type SortKey } from "@/lib/filters";
 import { OFFICE_IDS, OFFICES } from "@/lib/offices";
 import { formatRate, plural, scoreBoard, type OfficeScore } from "@/lib/scoring";
+import { isOpenOrder } from "@/lib/status";
 import { formatClock, formatPhoenixISODate } from "@/lib/time";
 
 import { useBoard } from "./BoardProvider";
@@ -24,7 +25,7 @@ export function BattleView() {
 
   const shifts = useMemo(() => {
     if (!state) return [];
-    return Array.from(new Set(state.orders.filter((order) => !order.dateFilled).map((order) => order.shift).filter(Boolean))).sort();
+    return Array.from(new Set(state.orders.filter((order) => isOpenOrder(order)).map((order) => order.shift).filter(Boolean))).sort();
   }, [state]);
 
   const nameFor = (id: string) => state?.recruiters.find((person) => person.id === id)?.name ?? "Unassigned";
@@ -50,7 +51,7 @@ export function BattleView() {
                 <ScorePanel
                   score={scores.tempe}
                   leading={scores.leader === "tempe"}
-                  spots={state.orders.filter((order) => order.office === "tempe" && !order.dateFilled).reduce((sum, order) => sum + spotsLeft(order), 0)}
+                  spots={state.orders.filter((order) => order.office === "tempe" && isOpenOrder(order)).reduce((sum, order) => sum + spotsLeft(order), 0)}
                 />
                 <div className="versus">
                   <span>VS</span>
@@ -61,7 +62,7 @@ export function BattleView() {
                 <ScorePanel
                   score={scores.mesa}
                   leading={scores.leader === "mesa"}
-                  spots={state.orders.filter((order) => order.office === "mesa" && !order.dateFilled).reduce((sum, order) => sum + spotsLeft(order), 0)}
+                  spots={state.orders.filter((order) => order.office === "mesa" && isOpenOrder(order)).reduce((sum, order) => sum + spotsLeft(order), 0)}
                 />
               </section>
               <p className="score-note">
@@ -105,7 +106,7 @@ export function BattleView() {
                 {OFFICE_IDS.map((office) => {
                   const orders = sortOrders(
                     state.orders.filter(
-                      (order) => !order.dateFilled && order.office === office && matchesFilters(order, { recruiterId, shift }),
+                      (order) => isOpenOrder(order) && order.office === office && matchesFilters(order, { recruiterId, shift }),
                     ),
                     sort,
                   );

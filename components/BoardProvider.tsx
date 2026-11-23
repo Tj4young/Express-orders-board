@@ -31,7 +31,7 @@ export type DialogState =
   | { type: "unlock" }
   | null;
 
-export type ToastState = { message: string; undoId?: string } | null;
+export type ToastState = { message: string; undoId?: string; undoKind?: "fill" | "competitor" } | null;
 
 type MutationBody = { state: BoardState; celebration?: Celebration | null };
 
@@ -62,6 +62,8 @@ export type BoardController = {
   deleteOrder: (id: string) => Promise<void>;
   fillOne: (order: Order, recruiterId: string) => Promise<void>;
   undoFill: (id: string) => Promise<void>;
+  markCompetitorFilled: (id: string) => Promise<void>;
+  undoCompetitorFilled: (id: string) => Promise<void>;
   saveRecruiter: (input: RecruiterInput, id?: string) => Promise<void>;
   deleteRecruiter: (id: string) => Promise<void>;
   addExample: () => Promise<void>;
@@ -90,7 +92,7 @@ export function BoardProvider({ children }: { children: React.ReactNode }) {
 }
 
 function Toast() {
-  const { toast, dismissToast, undoFill, pendingId } = useBoard();
+  const { toast, dismissToast, undoFill, undoCompetitorFilled, pendingId } = useBoard();
   if (!toast) return null;
   return (
     <div className="toast" role="status">
@@ -99,9 +101,12 @@ function Toast() {
         <button
           className="btn btn-ghost"
           type="button"
+          data-testid="toast-undo"
           disabled={pendingId === toast.undoId}
           onClick={() => {
-            void undoFill(toast.undoId as string);
+            const id = toast.undoId as string;
+            if (toast.undoKind === "competitor") void undoCompetitorFilled(id);
+            else void undoFill(id);
             dismissToast();
           }}
         >
@@ -452,6 +457,56 @@ function useBoardController(): BoardController {
     [applyState, flash, mutate],
   );
 
+  const markCompetitorFilled = useCallback(
+    async (id: string) => {
+      setPendingId(id);
+      try {
+        await mutate(
+          `/api/orders/${id}/competitor`,
+          { method: "POST", body: JSON.stringify({ action: "mark" }) },
+          (body) => {
+            applyState(body.state, null, true);
+            const order = body.state.orders.find((item) => item.id === id);
+            const label = order ? `${order.position} at ${order.client}` : "That order";
+            flash({
+              message: `${label} was marked competitor filled. It left the board and is not a win.`,
+              undoId: id,
+              undoKind: "competitor",
+            });
+          },
+        );
+      } catch (error) {
+        flash({ message: error instanceof Error ? error.message : "That order couldn't be marked competitor filled." });
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [applyState, flash, mutate],
+  );
+
+  const undoCompetitorFilled = useCallback(
+    async (id: string) => {
+      setPendingId(id);
+      try {
+        await mutate(
+          `/api/orders/${id}/competitor`,
+          { method: "POST", body: JSON.stringify({ action: "undo" }) },
+          (body) => {
+            applyState(body.state, null, true);
+            const order = body.state.orders.find((item) => item.id === id);
+            const label = order ? `${order.position} at ${order.client}` : "That order";
+            flash({ message: `${label} is back on the board.` });
+          },
+        );
+      } catch (error) {
+        flash({ message: error instanceof Error ? error.message : "That competitor mark couldn't be undone." });
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [applyState, flash, mutate],
+  );
+
   const undoFill = useCallback(
     async (id: string) => {
       setPendingId(id);
@@ -557,6 +612,8 @@ function useBoardController(): BoardController {
     deleteOrder,
     fillOne,
     undoFill,
+    markCompetitorFilled,
+    undoCompetitorFilled,
     saveRecruiter,
     deleteRecruiter,
     addExample,
