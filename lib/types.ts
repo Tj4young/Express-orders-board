@@ -21,6 +21,12 @@ export type Order = {
   dateOpened: string;
   /** ISO timestamp when filled first reached openings. Null while the order is active. */
   dateFilled: string | null;
+  /**
+   * ISO timestamp when a client pulled the order because a competitor filled it.
+   * Null on an active order and on an order we filled ourselves.
+   * This is not a win: it does not celebrate, and it is not a Hall of Fame entry.
+   */
+  competitorFilledAt: string | null;
   notes: string;
   /** Small data URL for the client's logo, or null. */
   logo: string | null;

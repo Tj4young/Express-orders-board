@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -7,6 +8,7 @@ import { placementBreakdown } from "@/lib/credit";
 import { matchesFilters, sortOrders, spotsLeft, type SortKey } from "@/lib/filters";
 import { OFFICES } from "@/lib/offices";
 import { formatRate, plural, scoreBoard } from "@/lib/scoring";
+import { isLostOrder, isOpenOrder } from "@/lib/status";
 import { formatPhoenixISODate } from "@/lib/time";
 import type { OfficeId, Order } from "@/lib/types";
 
@@ -28,6 +30,8 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
     openPlace,
     openUnlock,
     undoFill,
+    markCompetitorFilled,
+    undoCompetitorFilled,
     deleteOrder,
     addExample,
     reopenOrder,
@@ -50,12 +54,12 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
 
   const active = useMemo(() => {
     if (!state) return [];
-    return state.orders.filter((order) => !order.dateFilled && order.office === office);
+    return state.orders.filter((order) => isOpenOrder(order) && order.office === office);
   }, [state, office]);
 
   const openEverywhere = useMemo(() => {
     if (!state) return [];
-    return state.orders.filter((order) => !order.dateFilled);
+    return state.orders.filter((order) => isOpenOrder(order));
   }, [state]);
 
   const filtered = useMemo(() => {
@@ -76,7 +80,7 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
       const removed = prevIds.current.filter((id) => !ids.includes(id));
       const completed = removed
         .map((id) => ordersRef.current.find((order) => order.id === id))
-        .filter((order): order is Order => Boolean(order?.dateFilled));
+        .filter((order): order is Order => Boolean(order && (order.dateFilled || order.competitorFilledAt)));
       if (completed.length > 0) {
         const fresh = completed;
         setGhosts((current) => [...current.filter((order) => !fresh.some((item) => item.id === order.id)), ...fresh]);
@@ -139,6 +143,7 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
   const mine = scores ? scores[office] : null;
   const other = scores ? scores[rival] : null;
   const spots = active.reduce((sum, order) => sum + spotsLeft(order), 0);
+  const lostCount = state ? state.orders.filter((order) => order.office === office && isLostOrder(order)).length : 0;
   const agingCount = today ? active.filter((order) => today && order.dateOpened <= addDaysSafe(today, -14)).length : 0;
 
   const nameFor = (id: string) => state?.recruiters.find((person) => person.id === id)?.name ?? "Unassigned";
@@ -212,6 +217,14 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
             <strong>{today ? agingCount : "—"}</strong>
             <span>Aging 14+ days</span>
           </article>
+          <Link
+            className={`stat stat-link${lostCount > 0 ? " has-lost" : ""}`}
+            href="/lost"
+            data-testid="competitor-count"
+          >
+            <strong>{lostCount}</strong>
+            <span>Competitor filled</span>
+          </Link>
         </section>
 
         {state && (
@@ -275,6 +288,7 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
                 onUndo={() => void undoFill(order.id)}
                 onEdit={() => openOrder(order, order.office)}
                 onDelete={() => void deleteOrder(order.id)}
+                onCompetitor={() => void markCompetitorFilled(order.id)}
               />
             ))}
           </div>
@@ -288,6 +302,7 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
             unlocked={unlocked}
             pendingId={pendingId}
             onReopen={(order) => void reopen(order)}
+            onUndoCompetitor={(order) => void undoCompetitorFilled(order.id)}
             onUnlock={openUnlock}
           />
         )}

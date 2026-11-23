@@ -124,3 +124,33 @@ test("file storage keeps a logo added on edit and drops it only when the edit cl
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("file storage keeps a competitor stamp and drops it on undo", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "express-board-"));
+  try {
+    const repo = createFileRepository(path.join(dir, "board.json"));
+    const created = await repo.createOrder({ ...orderFields, openings: 4, filled: 0 });
+    const id = created.state.orders[0].id;
+    await repo.fill(id, "increment", "rec_ivonne");
+    const marked = await repo.competitor(id, "mark");
+    assert.equal(marked.celebration, null);
+    const fresh = await createFileRepository(path.join(dir, "board.json")).read();
+    const order = fresh.orders.find((item) => item.id === id);
+    assert.ok(order);
+    assert.equal(order.filled, 1);
+    assert.equal(order.dateFilled, null);
+    assert.equal(typeof order.competitorFilledAt, "string");
+    assert.equal(fresh.fillEvents.length, 1);
+    assert.equal(fresh.celebrations.length, 1);
+    assert.equal(fresh.celebrations[0]?.kind, "fill");
+
+    const undone = await repo.competitor(id, "undo");
+    assert.equal(undone.celebration, null);
+    const restored = await createFileRepository(path.join(dir, "board.json")).read();
+    assert.equal(restored.orders.find((item) => item.id === id)?.competitorFilledAt, null);
+    assert.equal(restored.orders.find((item) => item.id === id)?.filled, 1);
+    assert.equal(restored.fillEvents.length, 1);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

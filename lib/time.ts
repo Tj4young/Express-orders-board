@@ -123,7 +123,12 @@ export function dayInPeriod(day: string, period: Period): boolean {
 /** Orders still open this many calendar days pick up the aging treatment. */
 export const AGING_DAYS = 14;
 
-export function isAging(dateOpened: string, today: string, dateFilled: string | null): boolean {
-  if (dateFilled) return false;
+export function isAging(
+  dateOpened: string,
+  today: string,
+  dateFilled: string | null,
+  competitorFilledAt: string | null = null,
+): boolean {
+  if (dateFilled || competitorFilledAt) return false;
   return calendarDaysBetween(dateOpened, today) >= AGING_DAYS;
 }

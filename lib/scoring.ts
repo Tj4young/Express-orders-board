@@ -6,6 +6,7 @@ import {
   phoenixDayFromInstant,
   type Period,
 } from "./time";
+import { isOpenOrder } from "./status";
 import type { BoardState, OfficeId, Order } from "./types";
 
 export type OfficeScore = {
@@ -46,11 +47,20 @@ export type Scoreboard = {
   recentWins: RecentWin[];
 };
 
+/**
+ * A competitor pull ends the order the way a fill does, but it is not a close.
+ * Counting it as worked for that period keeps fill rate from jumping up.
+ * After the period it drops out, so it does not drag later months.
+ */
 function workedInPeriod(order: Order, period: Period): boolean {
   if (order.dateOpened > period.end) return false;
-  if (!order.dateFilled) return true;
-  const filledDay = phoenixDayFromInstant(order.dateFilled);
-  return filledDay >= period.start;
+  const ended = order.dateFilled
+    ? phoenixDayFromInstant(order.dateFilled)
+    : order.competitorFilledAt
+      ? phoenixDayFromInstant(order.competitorFilledAt)
+      : null;
+  if (!ended) return true;
+  return ended >= period.start;
 }
 
 function filledInPeriod(order: Order, period: Period): boolean {
@@ -144,7 +154,7 @@ export function plural(count: number, singular: string, pluralForm = `${singular
 }
 
 export function activeOrders(state: BoardState, office?: OfficeId): Order[] {
-  return state.orders.filter((order) => !order.dateFilled && (!office || order.office === office));
+  return state.orders.filter((order) => isOpenOrder(order) && (!office || order.office === office));
 }
 
 export function wins(state: BoardState, office?: OfficeId): Order[] {

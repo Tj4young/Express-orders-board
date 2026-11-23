@@ -6,13 +6,14 @@ import Link from "next/link";
 import { IconLock, IconSound } from "./icons";
 import { useBoard } from "./BoardProvider";
 
-export type NavKey = "tempe" | "mesa" | "battle" | "wins";
+export type NavKey = "tempe" | "mesa" | "battle" | "wins" | "lost";
 
 const LINKS: { href: string; key: NavKey; label: string }[] = [
   { href: "/tempe", key: "tempe", label: "Tempe" },
   { href: "/mesa", key: "mesa", label: "Mesa" },
   { href: "/battle", key: "battle", label: "Battle TV" },
   { href: "/wins", key: "wins", label: "Wins" },
+  { href: "/lost", key: "lost", label: "Lost" },
 ];
 
 export function SiteHeader({ active }: { active: NavKey }) {

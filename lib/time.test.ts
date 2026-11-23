@@ -23,4 +23,5 @@ test("aging starts at 14 full days open", () => {
   assert.equal(isAging("2026-11-04", "2026-11-18", null), true);
   assert.equal(isAging("2026-11-05", "2026-11-18", null), false);
   assert.equal(isAging("2026-11-01", "2026-11-18", "2026-11-18T18:00:00.000Z"), false);
+  assert.equal(isAging("2026-11-01", "2026-11-18", null, "2026-11-18T18:00:00.000Z"), false);
 });

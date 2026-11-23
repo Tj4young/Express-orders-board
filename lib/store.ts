@@ -12,8 +12,10 @@ import {
   deleteOrder,
   deleteRecruiter,
   fillOrder,
+  markCompetitorFilled,
   normalizeState,
   reopenOrder,
+  undoCompetitorFilled,
   parseOrderInput,
   parseRecruiterInput,
   updateOrder,
@@ -32,6 +34,7 @@ export type BoardRepository = {
   updateOrder(id: string, body: unknown): Promise<MutationResult>;
   deleteOrder(id: string): Promise<BoardState>;
   fill(id: string, action: "increment" | "undo", recruiterId?: string): Promise<MutationResult>;
+  competitor(id: string, action: "mark" | "undo"): Promise<MutationResult>;
   reopen(id: string): Promise<MutationResult>;
   createRecruiter(body: unknown): Promise<BoardState>;
   updateRecruiter(id: string, body: unknown): Promise<BoardState>;
@@ -200,6 +203,10 @@ function repository(
       locked((state, now) => updateOrder(state, id, parseOrderInput(body, state.recruiters, now.now), now)),
     deleteOrder: (id) => locked((state, now) => deleteOrder(state, id, now)),
     fill: (id, action, recruiterId) => locked((state, now) => fillOrder(state, id, action, now, recruiterId)),
+    competitor: (id, action) =>
+      locked((state, now) =>
+        action === "mark" ? markCompetitorFilled(state, id, now) : undoCompetitorFilled(state, id, now),
+      ),
     reopen: (id) => locked((state, now) => reopenOrder(state, id, now)),
     createRecruiter: (body) => locked((state, now) => createRecruiter(state, parseRecruiterInput(body), now)),
     updateRecruiter: (id, body) =>
