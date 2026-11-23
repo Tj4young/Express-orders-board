@@ -65,6 +65,8 @@ export type BoardController = {
   saveRecruiter: (input: RecruiterInput, id?: string) => Promise<void>;
   deleteRecruiter: (id: string) => Promise<void>;
   addExample: () => Promise<void>;
+  /** Returns the new order id, or null when the passcode is missing or the save fails. */
+  reopenOrder: (id: string) => Promise<string | null>;
 };
 
 const BoardContext = createContext<BoardController | null>(null);
@@ -127,6 +129,8 @@ function useBoardController(): BoardController {
   const [pendingId, setPendingId] = useState<string | null>(null);
 
   const passcodeRef = useRef("");
+  const stateRef = useRef<BoardState | null>(null);
+  stateRef.current = state;
   const soundRef = useRef(false);
   const updatedAtRef = useRef("");
   const seenRef = useRef(new Set<string>());
@@ -487,6 +491,34 @@ function useBoardController(): BoardController {
     [applyState, flash, mutate],
   );
 
+  const reopenOrder = useCallback(
+    async (id: string): Promise<string | null> => {
+      if (!passcodeRef.current) {
+        setDialog({ type: "unlock" });
+        return null;
+      }
+      setPendingId(id);
+      try {
+        let createdId: string | null = null;
+        const known = new Set((stateRef.current?.orders ?? []).map((order) => order.id));
+        await mutate(`/api/orders/${id}/reopen`, { method: "POST" }, (body) => {
+          applyState(body.state, null, true);
+          const created = body.state.orders.find((order) => !known.has(order.id));
+          createdId = created?.id ?? null;
+          const label = created ? `${created.position} at ${created.client}` : "that job";
+          flash({ message: `Reopened ${label}. It's back on the board with nothing filled yet.` });
+        });
+        return createdId;
+      } catch (error) {
+        flash({ message: error instanceof Error ? error.message : "That job couldn't be reopened." });
+        return null;
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [applyState, flash, mutate],
+  );
+
   const addExample = useCallback(async () => {
     try {
       await mutate("/api/example-order", { method: "POST" }, (body) => {
@@ -528,5 +560,6 @@ function useBoardController(): BoardController {
     saveRecruiter,
     deleteRecruiter,
     addExample,
+    reopenOrder,
   };
 }

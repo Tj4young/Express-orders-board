@@ -16,6 +16,7 @@ export function WinCard({
   onUndo,
   onEdit,
   onDelete,
+  onReopen,
 }: {
   order: Order;
   recruiterName: string;
@@ -26,6 +27,7 @@ export function WinCard({
   onUndo: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onReopen: () => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   return (
@@ -41,6 +43,9 @@ export function WinCard({
       {order.example && <span className="pill pill-example">Example</span>}
       {unlocked && (
         <div className="card-secondary">
+          <button className="btn btn-primary" type="button" data-testid="reopen-button" disabled={pending} onClick={onReopen}>
+            Reopen
+          </button>
           <button className="btn btn-ghost" type="button" disabled={pending} onClick={onUndo}>
             Undo last fill
           </button>

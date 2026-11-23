@@ -1,6 +1,6 @@
 # Express Open Orders Board
 
-A live board for the Tempe and Mesa offices of Express Employment Professionals. Laptops, phones, and the office TV all see the same orders. Every **+1 Filled** pops confetti on every screen, including the Battle TV, and names who placed the person. When that fill is the last opening, the room gets the bigger order-filled celebration and the order moves into Wins.
+A live board for the Tempe and Mesa offices of Express Employment Professionals. Laptops, phones, and the office TV all see the same orders. Every **+1 Filled** pops confetti on every screen, including the Battle TV, and names who placed the person. When that fill is the last opening, the room gets the bigger order-filled celebration and the order moves into Wins, where it stays saved so someone can reopen it later.
 
 The board starts empty. It does not invent sample jobs. Recruiters start as Ivonne, Isabella, and Jane at Express Tempe, and Alex and Tim at Express Mesa. Change those offices anytime.
 
@@ -72,13 +72,15 @@ On the TV, open the Battle page, tap the browser’s full-screen control, and le
 5. When filled reaches openings, three things happen:
    - A bigger celebration, for example `🎉 Express Tempe filled Forklift Operator at ACME!`
    - The filled date is stamped automatically.
-   - The order leaves the active board and shows up under Wins.
-6. Editing the filled count up celebrates once for that save, even if the number jumps by more than one. Editing it down does not celebrate.
-7. Orders that have been open **14 days or more** get an **Aging** badge.
-8. Use the filters for recruiter and shift. Sort by oldest or by most openings.
-9. **Recruiters** lets you rename someone or move them to the other office. You cannot remove a recruiter who still has orders or placements. Moving someone does not rewrite heads they already placed.
-10. **Sound off** is the default so a TV stays quiet. Tap **Sound on** on a laptop if you want a short chime with the confetti. Each browser remembers that choice. The browser may ignore sound until the page has been clicked.
-11. **Add example order** puts one clearly labeled sample on the board (`EXAMPLE — Demo Client`). It is optional, there can be only one, and it is not a real job. Delete it when you are done looking.
+   - The order leaves the active board and shows up under Wins. It is saved, not deleted. The fill history stays with that order.
+6. **Filled / Saved jobs**, on the Tempe page and the Mesa page, lists that office's finished orders. Search by client or position. **Reopen** puts a fresh copy back on the board: same office, client, position, pay, shift, notes, logo, recruiter, and number of openings, with filled reset to 0 and today's date. The original stays on Wins. Heads already counted on the Battle page stay counted once. Filling the new copy counts only the new placements. Wins has the same **Reopen** button. It asks for the team passcode, the same way adding and editing do.
+7. **Open orders** is the tab on the left edge of the Tempe and Mesa pages, on a laptop or a phone. It lists every open order: logo, client, position, how many are filled, and which office. Tap one to jump to that card. An order from the other office opens that office's board.
+8. Editing the filled count up celebrates once for that save, even if the number jumps by more than one. Editing it down does not celebrate.
+9. Orders that have been open **14 days or more** get an **Aging** badge.
+10. Use the filters for recruiter and shift. Sort by oldest or by most openings.
+11. **Recruiters** lets you rename someone or move them to the other office. You cannot remove a recruiter who still has orders or placements. Moving someone does not rewrite heads they already placed.
+12. **Sound off** is the default so a TV stays quiet. Tap **Sound on** on a laptop if you want a short chime with the confetti. Each browser remembers that choice. The browser may ignore sound until the page has been clicked.
+13. **Add example order** puts one clearly labeled sample on the board (`EXAMPLE — Demo Client`). It is optional, there can be only one, and it is not a real job. Delete it when you are done looking.
 
 Changes show up for everyone within a few seconds. You do not need to refresh.
 
@@ -93,6 +95,7 @@ The Battle page compares the offices in **Arizona time**. Weeks run Monday throu
 - The recruiter leaderboard counts heads for the person who placed them, across both offices.
 - The ticker names everyone who placed someone on a filled order. A single fill celebrates the person who placed that one. The order-filled celebration still names everyone who placed someone on that order.
 - **Opened by** is who opened the order. It is not who gets every head.
+- **Reopen** copies a filled job onto the board. It does not add heads, and it does not count as another filled order. The original win keeps its credit. Only placements on the new copy are new.
 
 Placements already on the board stay with the person who opened the order. Deleting an order removes those heads. Changing who opened an order does not move heads that were already placed.
 

@@ -21,6 +21,21 @@ export function spotsLeft(order: Order): number {
   return Math.max(0, order.openings - order.filled);
 }
 
+/** Client and position search. Every word has to appear in either field. */
+export function matchesJobQuery(order: Pick<Order, "client" | "position">, query: string): boolean {
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return true;
+  const haystack = `${order.client} ${order.position}`.toLowerCase();
+  return terms.every((term) => haystack.includes(term));
+}
+
+/** Filled jobs for one office, newest fill first. Open orders are not included. */
+export function savedJobs(orders: Order[], office: OfficeId, query: string): Order[] {
+  return orders
+    .filter((order) => Boolean(order.dateFilled) && order.office === office && matchesJobQuery(order, query))
+    .sort((a, b) => (b.dateFilled ?? "").localeCompare(a.dateFilled ?? "") || b.createdAt.localeCompare(a.createdAt));
+}
+
 export function matchesFilters(
   order: Order,
   filters: { office?: OfficeId | "all"; recruiterId?: string; shift?: string },

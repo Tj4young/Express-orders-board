@@ -6,6 +6,7 @@ import path from "path";
 import test from "node:test";
 
 import { createFileRepository } from "./store";
+import { formatPhoenixISODate } from "./time";
 
 const orderFields = {
   office: "tempe",
@@ -47,6 +48,53 @@ test("file storage keeps fills across reads and parallel clicks", async () => {
     assert.equal(state.celebrations.length, 5);
     assert.equal(state.celebrations.filter((item) => item.kind === "fill").length, 4);
     assert.equal(state.celebrations.find((item) => item.kind === "filled")?.client, "ACME");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("reopening through file storage keeps the original fills and writes a fresh copy", async () => {
+  const png = readFileSync(new URL("../fixtures/avnet1.png", import.meta.url));
+  const logo = `data:image/png;base64,${png.toString("base64")}`;
+  const dir = await mkdtemp(path.join(tmpdir(), "express-board-"));
+  try {
+    const repo = createFileRepository(path.join(dir, "board.json"));
+    const created = await repo.createOrder({
+      ...orderFields,
+      client: "State Seal",
+      position: "Machine Operator",
+      openings: 2,
+      notes: "Repeat client",
+      logo,
+    });
+    const id = created.state.orders[0].id;
+    await repo.fill(id, "increment", "rec_ivonne");
+    await repo.fill(id, "increment", "rec_jane");
+    const reopened = await repo.reopen(id);
+    assert.equal(reopened.celebration, null);
+    const fresh = await createFileRepository(path.join(dir, "board.json")).read();
+    assert.equal(fresh.orders.length, 2);
+    const original = fresh.orders.find((order) => order.id === id);
+    const copy = fresh.orders.find((order) => order.id !== id);
+    assert.ok(original);
+    assert.ok(copy);
+    assert.equal(original.filled, 2);
+    assert.ok(original.dateFilled);
+    assert.equal(original.logo, logo);
+    assert.equal(copy.filled, 0);
+    assert.equal(copy.dateFilled, null);
+    assert.equal(copy.dateOpened, formatPhoenixISODate(new Date()));
+    assert.equal(copy.client, "State Seal");
+    assert.equal(copy.position, "Machine Operator");
+    assert.equal(copy.payRate, "$21/hr");
+    assert.equal(copy.shift, "1st Shift");
+    assert.equal(copy.notes, "Repeat client");
+    assert.equal(copy.logo, logo);
+    assert.equal(copy.recruiterId, "rec_ivonne");
+    assert.equal(copy.openings, 2);
+    assert.equal(copy.office, "tempe");
+    assert.equal(fresh.fillEvents.length, 2);
+    assert.ok(fresh.fillEvents.every((event) => event.orderId === id));
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { placementBreakdown } from "@/lib/credit";
@@ -12,17 +12,36 @@ import type { OfficeId, Order } from "@/lib/types";
 
 import { useBoard } from "./BoardProvider";
 import { Filters } from "./Filters";
+import { OpenOrdersDrawer } from "./OpenOrdersDrawer";
 import { OrderCard } from "./OrderCard";
+import { SavedJobs } from "./SavedJobs";
 import { SiteHeader } from "./SiteHeader";
-import { WinCard } from "./WinCard";
 
 export function OfficeBoard({ office }: { office: OfficeId }) {
   const board = useBoard();
-  const { state, now, unlocked, openOrder, openRecruiters, openPlace, openUnlock, undoFill, deleteOrder, addExample, pendingId, loadError, loading, online, celebration } = board;
+  const {
+    state,
+    now,
+    unlocked,
+    openOrder,
+    openRecruiters,
+    openPlace,
+    openUnlock,
+    undoFill,
+    deleteOrder,
+    addExample,
+    reopenOrder,
+    pendingId,
+    loadError,
+    loading,
+    online,
+  } = board;
+  const router = useRouter();
   const [recruiterId, setRecruiterId] = useState("all");
   const [shift, setShift] = useState("all");
   const [sort, setSort] = useState<SortKey>("oldest");
   const [ghosts, setGhosts] = useState<Order[]>([]);
+  const [focus, setFocus] = useState<{ id: string; tick: number } | null>(null);
   const prevIds = useRef<string[] | null>(null);
 
   const today = now ? formatPhoenixISODate(now) : null;
@@ -34,12 +53,16 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
     return state.orders.filter((order) => !order.dateFilled && order.office === office);
   }, [state, office]);
 
+  const openEverywhere = useMemo(() => {
+    if (!state) return [];
+    return state.orders.filter((order) => !order.dateFilled);
+  }, [state]);
+
   const filtered = useMemo(() => {
-    return sortOrders(
-      active.filter((order) => matchesFilters(order, { recruiterId, shift })),
-      sort,
-    );
-  }, [active, recruiterId, shift, sort]);
+    const matching = active.filter((order) => matchesFilters(order, { recruiterId, shift }));
+    const focused = focus ? active.find((order) => order.id === focus.id && !matching.some((item) => item.id === order.id)) : undefined;
+    return sortOrders(focused ? [...matching, focused] : matching, sort);
+  }, [active, recruiterId, shift, sort, focus]);
 
   const filteredKey = filtered.map((order) => order.id).join("|");
   const ordersRef = useRef<Order[]>([]);
@@ -66,6 +89,48 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
     prevIds.current = ids;
   }, [filteredKey]);
 
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("focus");
+    if (!id) return;
+    setFocus({ id, tick: Date.now() });
+    const url = new URL(window.location.href);
+    url.searchParams.delete("focus");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [office]);
+
+  useEffect(() => {
+    if (!focus) return;
+    const node = document.getElementById(`order-${focus.id}`);
+    if (!node) return;
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = window.setTimeout(() => {
+      setFocus((current) => (current?.tick === focus.tick ? null : current));
+    }, 4500);
+    return () => window.clearTimeout(timer);
+  }, [focus, filteredKey]);
+
+  function jumpTo(order: Order) {
+    if (order.office !== office) {
+      router.push(`/${order.office}?focus=${encodeURIComponent(order.id)}`);
+      return;
+    }
+    if (!matchesFilters(order, { recruiterId, shift })) {
+      setRecruiterId("all");
+      setShift("all");
+    }
+    setFocus({ id: order.id, tick: Date.now() });
+  }
+
+  async function reopen(order: Order) {
+    const id = await reopenOrder(order.id);
+    if (!id) return;
+    if (!matchesFilters(order, { recruiterId, shift })) {
+      setRecruiterId("all");
+      setShift("all");
+    }
+    setFocus({ id, tick: Date.now() });
+  }
+
   const shifts = useMemo(() => {
     return Array.from(new Set(active.map((order) => order.shift).filter(Boolean))).sort();
   }, [active]);
@@ -75,12 +140,6 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
   const other = scores ? scores[rival] : null;
   const spots = active.reduce((sum, order) => sum + spotsLeft(order), 0);
   const agingCount = today ? active.filter((order) => today && order.dateOpened <= addDaysSafe(today, -14)).length : 0;
-  const wins = useMemo(() => {
-    if (!state) return [];
-    return state.orders
-      .filter((order) => order.dateFilled && order.office === office)
-      .sort((a, b) => (b.dateFilled ?? "").localeCompare(a.dateFilled ?? ""));
-  }, [state, office]);
 
   const nameFor = (id: string) => state?.recruiters.find((person) => person.id === id)?.name ?? "Unassigned";
   const visible = [
@@ -91,6 +150,7 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
 
   return (
     <div className="page">
+      {state && <OpenOrdersDrawer orders={openEverywhere} currentOffice={office} onSelect={jumpTo} />}
       <SiteHeader active={office} />
       <main id="content" className="wrap board-main">
         {!online && state && <p className="banner">Reconnecting… the last orders are still on screen.</p>}
@@ -98,7 +158,9 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
           <div>
             <p className="eyebrow">Express Employment Professionals</p>
             <h1>{info.name}</h1>
-            <p className="lede">Open orders for the {info.short} desk. Both offices see the same board within a few seconds.</p>
+            <p className="lede">
+              Open orders for the {info.short} desk. Both offices see the same board within a few seconds. The Open orders tab jumps to any card.
+            </p>
             {mine && other && (
               <p className="rival-line">
                 This month: <strong>{mine.monthHeads}</strong> heads · {plural(mine.monthOrders, "order")} filled · {formatRate(mine.monthFillRate)} fill rate.
@@ -208,6 +270,7 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
                 readOnly={!unlocked}
                 exiting={ghosts.some((ghost) => ghost.id === order.id)}
                 pending={pendingId === order.id}
+                targeted={focus?.id === order.id}
                 onFill={() => openPlace(order)}
                 onUndo={() => void undoFill(order.id)}
                 onEdit={() => openOrder(order, order.office)}
@@ -217,32 +280,17 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
           </div>
         )}
 
-        <section className="wins-preview" id="recent-wins">
-          <div className="section-head">
-            <h2>Recent wins</h2>
-            <Link href="/wins">Hall of Fame</Link>
-          </div>
-          {wins.length === 0 ? (
-            <p className="quiet">Filled orders slide off this board and land here.</p>
-          ) : (
-            <div className="win-row">
-              {wins.slice(0, 3).map((order) => (
-                <WinCard
-                  key={order.id}
-                  order={order}
-                  recruiterName={nameFor(order.recruiterId)}
-                  credit={state ? placementBreakdown(state, order.id) : ""}
-                  fresh={celebration?.orderId === order.id || isFresh(order, now)}
-                  unlocked={unlocked}
-                  pending={pendingId === order.id}
-                  onUndo={() => void undoFill(order.id)}
-                  onEdit={() => openOrder(order, order.office)}
-                  onDelete={() => void deleteOrder(order.id)}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+        {state && (
+          <SavedJobs
+            orders={state.orders}
+            office={office}
+            recruiterName={nameFor}
+            unlocked={unlocked}
+            pendingId={pendingId}
+            onReopen={(order) => void reopen(order)}
+            onUnlock={openUnlock}
+          />
+        )}
         <footer className="site-footer">Express Employment Professionals · Tempe & Mesa, Arizona · Scores use Arizona time, Monday through Sunday.</footer>
       </main>
     </div>
@@ -254,9 +302,4 @@ function addDaysSafe(iso: string, days: number) {
   const utc = new Date(Date.UTC(year, month - 1, day));
   utc.setUTCDate(utc.getUTCDate() + days);
   return utc.toISOString().slice(0, 10);
-}
-
-function isFresh(order: Order, now: Date | null) {
-  if (!now || !order.dateFilled) return false;
-  return now.getTime() - new Date(order.dateFilled).getTime() < 20_000;
 }

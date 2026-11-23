@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { placementBreakdown } from "@/lib/credit";
@@ -12,7 +13,8 @@ import { SiteHeader } from "./SiteHeader";
 import { WinCard } from "./WinCard";
 
 export function WinsView() {
-  const { state, now, unlocked, openOrder, openUnlock, undoFill, deleteOrder, pendingId, celebration, loading, loadError, online } = useBoard();
+  const router = useRouter();
+  const { state, now, unlocked, openOrder, openUnlock, undoFill, deleteOrder, reopenOrder, pendingId, celebration, loading, loadError, online } = useBoard();
   const [office, setOffice] = useState<OfficeId | "all">("all");
   const [recruiterId, setRecruiterId] = useState("all");
   const [shift, setShift] = useState("all");
@@ -41,7 +43,9 @@ export function WinsView() {
           <div>
             <p className="eyebrow">Hall of Fame</p>
             <h1>Wins</h1>
-            <p className="lede">Orders leave the active board the moment filled catches openings. Undo a fill if it was a mistake.</p>
+            <p className="lede">
+              Orders leave the active board the moment filled catches openings. Reopen puts a fresh copy back on that office&apos;s board. Undo a fill if it was a mistake.
+            </p>
           </div>
           {!unlocked && (
             <div className="intro-actions">
@@ -95,6 +99,11 @@ export function WinsView() {
                     onUndo={() => void undoFill(order.id)}
                     onEdit={() => openOrder(order, order.office)}
                     onDelete={() => void deleteOrder(order.id)}
+                    onReopen={() => {
+                      void reopenOrder(order.id).then((id) => {
+                        if (id) router.push(`/${order.office}?focus=${encodeURIComponent(id)}`);
+                      });
+                    }}
                   />
                 ))}
               </div>
