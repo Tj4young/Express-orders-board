@@ -5,11 +5,21 @@ import { useMemo, useState } from "react";
 import { placementBreakdown } from "@/lib/credit";
 import { matchesFilters, sortOrders, spotsLeft, type SortKey } from "@/lib/filters";
 import { OFFICE_IDS, OFFICES } from "@/lib/offices";
-import { formatRate, plural, scoreBoard, type OfficeScore } from "@/lib/scoring";
+import {
+  formatPlacementWhen,
+  formatRate,
+  plural,
+  recruiterPlacements,
+  scoreBoard,
+  type OfficeScore,
+  type RecruiterPlacement,
+  type RecruiterRank,
+} from "@/lib/scoring";
 import { isOpenOrder } from "@/lib/status";
 import { formatClock, formatPhoenixISODate } from "@/lib/time";
 
 import { useBoard } from "./BoardProvider";
+import { ClientLogo } from "./ClientLogo";
 import { Filters } from "./Filters";
 import { IconTrophy } from "./icons";
 import { CompactOrder } from "./OrderCard";
@@ -20,8 +30,15 @@ export function BattleView() {
   const [recruiterId, setRecruiterId] = useState("all");
   const [shift, setShift] = useState("all");
   const [sort, setSort] = useState<SortKey>("oldest");
+  // Kept across the board poll so a refresh does not close the open name.
+  const [openId, setOpenId] = useState<string | null>(null);
   const today = now ? formatPhoenixISODate(now) : null;
   const scores = state && now ? scoreBoard(state, now) : null;
+  const openRecruiter = scores?.recruiters.find((person) => person.recruiterId === openId) ?? null;
+  const placements = useMemo(() => {
+    if (!state || !now || !openId) return [];
+    return recruiterPlacements(state, openId, now);
+  }, [state, now, openId]);
 
   const shifts = useMemo(() => {
     if (!state) return [];
@@ -71,21 +88,38 @@ export function BattleView() {
 
               <section className="leaderboard-block" aria-label="Recruiter leaderboard">
                 <h2>Recruiter leaderboard · this month</h2>
+                <p className="leaderboard-hint">Tap a name to see the placements behind that number.</p>
                 <ol className="leaderboard">
-                  {scores.recruiters.map((person, index) => (
-                    <li key={person.recruiterId}>
-                      <span className="rank">{index + 1}</span>
-                      <span className="who">
-                        <strong>{person.name}</strong>
-                        <em>{OFFICES[person.office].short}</em>
-                      </span>
-                      <span className="heads">
-                        {person.monthHeads}
-                        <small> this month</small>
-                      </span>
-                    </li>
-                  ))}
+                  {scores.recruiters.map((person, index) => {
+                    const open = openId === person.recruiterId;
+                    return (
+                      <li key={person.recruiterId} className={open ? "is-open" : undefined}>
+                        <button
+                          type="button"
+                          className="leaderboard-toggle"
+                          aria-expanded={open}
+                          aria-controls="leaderboard-placements"
+                          data-testid={`leaderboard-${person.recruiterId}`}
+                          onClick={() => setOpenId((current) => (current === person.recruiterId ? null : person.recruiterId))}
+                        >
+                          <span className="rank">{index + 1}</span>
+                          <span className="who">
+                            <strong>{person.name}</strong>
+                            <em>{OFFICES[person.office].short}</em>
+                          </span>
+                          <span className="heads">
+                            {person.monthHeads}
+                            <small> this month</small>
+                          </span>
+                          <span className="leaderboard-chevron" aria-hidden="true" />
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ol>
+                {openRecruiter && state && (
+                  <PlacementList recruiter={openRecruiter} rows={placements} />
+                )}
               </section>
 
               <Filters
@@ -141,6 +175,43 @@ export function BattleView() {
           )}
         </div>
       </main>
+    </div>
+  );
+}
+
+function PlacementList({ recruiter, rows }: { recruiter: RecruiterRank; rows: RecruiterPlacement[] }) {
+  return (
+    <div
+      id="leaderboard-placements"
+      className="leaderboard-detail"
+      role="region"
+      aria-label={`${recruiter.name}'s placements this month`}
+      data-testid="leaderboard-placements"
+    >
+      <header>
+        <h3>{recruiter.name}</h3>
+        <p>{plural(recruiter.monthHeads, "placement")} this month</p>
+      </header>
+      {rows.length === 0 ? (
+        <p className="leaderboard-empty">No placements this month.</p>
+      ) : (
+        <ul className="placement-list">
+          {rows.map((row) => (
+            <li key={row.orderId} className="placement-row" data-testid="placement-row">
+              <ClientLogo client={row.client} logo={row.logo} size={44} />
+              <div className="placement-copy">
+                <strong>{row.client}</strong>
+                {row.position ? <span>{row.position}</span> : null}
+              </div>
+              <span className="placement-office">{row.officeName}</span>
+              <span className="placement-count">{row.count} placed</span>
+              <time className="placement-date" dateTime={row.latestDay}>
+                {formatPlacementWhen(row)}
+              </time>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
