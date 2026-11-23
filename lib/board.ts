@@ -369,6 +369,45 @@ export function fillOrder(
   return { state: next, celebration: null };
 }
 
+/**
+ * Put a fresh copy of a filled job back on the board.
+ * The original order, its fill events, and its celebrations stay as they are,
+ * so Wins and the battle score keep the credit already earned.
+ */
+export function reopenOrder(state: BoardState, orderId: string, clock: Clock): MutationResult {
+  const source = state.orders.find((order) => order.id === orderId);
+  if (!source) throw new BoardError("That order is no longer on the board.", 404);
+  if (!source.dateFilled) {
+    throw new BoardError("That job is still on the board. Reopen is for a filled job.");
+  }
+  if (!state.recruiters.some((person) => person.id === source.recruiterId)) {
+    throw new BoardError("Choose a recruiter from the list.");
+  }
+  const next = structuredClone(state);
+  const nowIso = clock.now.toISOString();
+  const copy: Order = {
+    id: clock.id(),
+    office: source.office,
+    client: source.client,
+    position: source.position,
+    payRate: source.payRate,
+    shift: source.shift,
+    openings: source.openings,
+    filled: 0,
+    recruiterId: source.recruiterId,
+    dateOpened: formatPhoenixISODate(clock.now),
+    dateFilled: null,
+    notes: source.notes,
+    logo: source.logo,
+    example: false,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+  next.orders.push(copy);
+  touch(next, clock.now);
+  return { state: next, celebration: null };
+}
+
 export function createRecruiter(state: BoardState, input: RecruiterInput, clock: Clock): BoardState {
   const next = structuredClone(state);
   const nameTaken = next.recruiters.some((recruiter) => recruiter.name.toLowerCase() === input.name.toLowerCase());

@@ -16,6 +16,7 @@ type CardProps = {
   readOnly: boolean;
   exiting?: boolean;
   pending?: boolean;
+  targeted?: boolean;
   onFill: () => void;
   onUndo: () => void;
   onEdit: () => void;
@@ -30,6 +31,7 @@ export function OrderCard({
   readOnly,
   exiting = false,
   pending = false,
+  targeted = false,
   onFill,
   onUndo,
   onEdit,
@@ -43,7 +45,8 @@ export function OrderCard({
 
   return (
     <article
-      className={`order-card${aging ? " is-aging" : ""}${order.example ? " is-example" : ""}${exiting ? " is-exiting" : ""}`}
+      id={`order-${order.id}`}
+      className={`order-card${aging ? " is-aging" : ""}${order.example ? " is-example" : ""}${exiting ? " is-exiting" : ""}${targeted ? " is-targeted" : ""}`}
       data-testid="order-card"
       data-office={order.office}
       data-example={order.example ? "true" : "false"}

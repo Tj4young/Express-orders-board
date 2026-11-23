@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { addExampleOrder, createInitialState, createOrder, deleteOrder, deleteRecruiter, fillOrder, normalizeState, parseOrderInput, updateOrder, updateRecruiter, type Clock } from "./board";
+import { addExampleOrder, BoardError, createInitialState, createOrder, deleteOrder, deleteRecruiter, fillOrder, normalizeState, parseOrderInput, reopenOrder, updateOrder, updateRecruiter, type Clock } from "./board";
 import { fillCelebrationTitle } from "./credit";
-import { scoreBoard } from "./scoring";
+import { savedJobs } from "./filters";
+import { activeOrders, scoreBoard, wins } from "./scoring";
 import type { OrderInput } from "./types";
 
 const NOW = new Date("2026-11-18T18:00:00.000Z");
@@ -474,6 +475,275 @@ test("renaming a recruiter updates the name on a fill celebration", () => {
   state = updateRecruiter(state, "rec_jane", { name: "Janet", office: "tempe" }, timer);
   assert.equal(state.celebrations[0].placedBy, "Janet");
   assert.equal(state.fillEvents[0].recruiterId, "rec_jane");
+});
+
+test("reopening a filled job copies the details and leaves the original credit alone", () => {
+  const png = readFileSync(new URL("../fixtures/avnet1.png", import.meta.url));
+  const logo = `data:image/png;base64,${png.toString("base64")}`;
+  const timer = clock();
+  let state = createInitialState(NOW);
+  state = createOrder(
+    state,
+    input({
+      client: "State Seal",
+      position: "Machine Operator",
+      payRate: "$22.50/hr",
+      shift: "2nd Shift",
+      openings: 2,
+      notes: "Steel-toe required",
+      logo,
+      recruiterId: "rec_ivonne",
+    }),
+    timer,
+  ).state;
+  const id = state.orders[0].id;
+  state = fillOrder(state, id, "increment", timer, "rec_ivonne").state;
+  timer.stamp("2026-11-18T19:00:00.000Z");
+  state = fillOrder(state, id, "increment", timer, "rec_jane").state;
+
+  const before = scoreBoard(state, new Date("2026-11-18T19:00:00.000Z"));
+  const beforeOrder = structuredClone(state.orders[0]);
+  const beforeFills = structuredClone(state.fillEvents);
+  const beforeCelebrations = state.celebrations.map((item) => item.id);
+
+  timer.stamp("2026-11-19T05:30:00.000Z");
+  const reopened = reopenOrder(state, id, timer);
+  assert.equal(reopened.celebration, null);
+  const original = reopened.state.orders.find((order) => order.id === id);
+  const copy = reopened.state.orders.find((order) => order.id !== id);
+  assert.ok(original);
+  assert.ok(copy);
+  assert.deepEqual(original, beforeOrder);
+  assert.deepEqual(reopened.state.fillEvents, beforeFills);
+  assert.deepEqual(
+    reopened.state.celebrations.map((item) => item.id),
+    beforeCelebrations,
+  );
+  assert.equal(copy.office, "tempe");
+  assert.equal(copy.client, "State Seal");
+  assert.equal(copy.position, "Machine Operator");
+  assert.equal(copy.payRate, "$22.50/hr");
+  assert.equal(copy.shift, "2nd Shift");
+  assert.equal(copy.notes, "Steel-toe required");
+  assert.equal(copy.logo, logo);
+  assert.equal(copy.recruiterId, "rec_ivonne");
+  assert.equal(copy.openings, 2);
+  assert.equal(copy.filled, 0);
+  assert.equal(copy.dateFilled, null);
+  assert.equal(copy.dateOpened, "2026-11-18");
+  assert.equal(copy.example, false);
+  assert.notEqual(copy.id, id);
+
+  const after = scoreBoard(reopened.state, new Date("2026-11-19T05:30:00.000Z"));
+  assert.equal(after.tempe.monthHeads, before.tempe.monthHeads);
+  assert.equal(after.tempe.monthOrders, before.tempe.monthOrders);
+  assert.equal(after.mesa.monthHeads, before.mesa.monthHeads);
+  assert.equal(after.recruiters.find((person) => person.name === "Jane")?.monthHeads, 1);
+  assert.equal(after.recentWins.some((win) => win.orderId === id), true);
+  assert.equal(after.recentWins.some((win) => win.orderId === copy.id), false);
+  assert.equal(wins(reopened.state).some((order) => order.id === id), true);
+  assert.equal(activeOrders(reopened.state).some((order) => order.id === copy.id), true);
+  assert.equal(activeOrders(reopened.state).some((order) => order.id === id), false);
+
+  const roundTrip = normalizeState(reopened.state);
+  assert.equal(roundTrip.orders.length, 2);
+  assert.equal(roundTrip.orders.find((order) => order.id === id)?.filled, 2);
+  assert.equal(roundTrip.orders.find((order) => order.id === copy.id)?.filled, 0);
+  assert.equal(roundTrip.fillEvents.length, 2);
+
+  let next = reopened.state;
+  next = fillOrder(next, copy.id, "increment", timer, "rec_ivonne").state;
+  const partial = scoreBoard(next, new Date("2026-11-19T05:30:00.000Z"));
+  assert.equal(partial.tempe.monthHeads, before.tempe.monthHeads + 1);
+  assert.equal(partial.tempe.monthOrders, before.tempe.monthOrders);
+  assert.equal(partial.recruiters.find((person) => person.name === "Jane")?.monthHeads, 1);
+  assert.equal(next.orders.find((order) => order.id === id)?.dateFilled, beforeOrder.dateFilled);
+  assert.equal(next.fillEvents.filter((event) => event.orderId === id).length, 2);
+  assert.equal(next.fillEvents.filter((event) => event.orderId === copy.id).length, 1);
+
+  next = fillOrder(next, copy.id, "increment", timer, "rec_ivonne").state;
+  const closed = scoreBoard(next, new Date("2026-11-19T05:30:00.000Z"));
+  assert.equal(closed.tempe.monthHeads, before.tempe.monthHeads + 2);
+  assert.equal(closed.tempe.monthOrders, before.tempe.monthOrders + 1);
+  assert.equal(closed.recruiters.find((person) => person.name === "Ivonne")?.monthHeads, 3);
+  assert.equal(closed.recruiters.find((person) => person.name === "Jane")?.monthHeads, 1);
+  assert.equal(next.orders.find((order) => order.id === id)?.filled, 2);
+  assert.ok(next.orders.find((order) => order.id === copy.id)?.dateFilled);
+  assert.equal(wins(next).length, 2);
+});
+
+test("reopen rejects an open order and a missing order", () => {
+  const timer = clock();
+  let state = createInitialState(NOW);
+  state = createOrder(state, input({ openings: 3, filled: 1 }), timer).state;
+  const id = state.orders[0].id;
+  assert.throws(() => reopenOrder(state, id, timer), /still on the board/);
+  assert.throws(() => reopenOrder(state, "missing", timer), (error: unknown) => {
+    assert.ok(error instanceof BoardError);
+    assert.equal(error.status, 404);
+    return true;
+  });
+});
+
+test("reopening the example does not create a second example", () => {
+  const timer = clock();
+  let state = addExampleOrder(createInitialState(NOW), timer);
+  const id = state.orders[0].id;
+  state = fillOrder(state, id, "increment", timer).state;
+  state = fillOrder(state, id, "increment", timer).state;
+  const next = reopenOrder(state, id, timer).state;
+  assert.equal(next.orders.find((order) => order.id === id)?.example, true);
+  assert.equal(next.orders.find((order) => order.id !== id)?.example, false);
+  assert.equal(next.orders.filter((order) => order.example).length, 1);
+  assert.throws(() => addExampleOrder(next, timer), /already on the board/);
+});
+
+test("saved jobs are per office and searchable by client or position", () => {
+  const orders = [
+    {
+      ...input(),
+      id: "open",
+      client: "ACME",
+      position: "Forklift",
+      dateFilled: null,
+      example: false,
+      createdAt: "2026-11-01T00:00:00.000Z",
+      updatedAt: "2026-11-01T00:00:00.000Z",
+    },
+    {
+      ...input(),
+      id: "seal",
+      client: "State Seal",
+      position: "Machine Operator",
+      dateFilled: "2026-11-02T18:00:00.000Z",
+      example: false,
+      createdAt: "2026-11-01T00:00:00.000Z",
+      updatedAt: "2026-11-02T00:00:00.000Z",
+    },
+    {
+      ...input(),
+      id: "avnet",
+      client: "Avnet",
+      position: "Buyer",
+      dateFilled: "2026-11-04T18:00:00.000Z",
+      example: false,
+      createdAt: "2026-11-03T00:00:00.000Z",
+      updatedAt: "2026-11-04T00:00:00.000Z",
+    },
+    {
+      ...input({ office: "mesa", recruiterId: "rec_alex" }),
+      id: "mesa-seal",
+      client: "State Seal",
+      position: "Picker",
+      dateFilled: "2026-11-03T18:00:00.000Z",
+      example: false,
+      createdAt: "2026-11-02T00:00:00.000Z",
+      updatedAt: "2026-11-03T00:00:00.000Z",
+    },
+  ];
+  assert.deepEqual(
+    savedJobs(orders, "tempe", "").map((order) => order.id),
+    ["avnet", "seal"],
+  );
+  assert.deepEqual(
+    savedJobs(orders, "tempe", "seal").map((order) => order.id),
+    ["seal"],
+  );
+  assert.deepEqual(
+    savedJobs(orders, "tempe", "machine operator").map((order) => order.id),
+    ["seal"],
+  );
+  assert.deepEqual(
+    savedJobs(orders, "mesa", "state seal").map((order) => order.id),
+    ["mesa-seal"],
+  );
+  assert.deepEqual(
+    savedJobs(orders, "tempe", "acme").map((order) => order.id),
+    [],
+  );
+});
+
+test("normalizeState keeps current open and filled orders, and reopen does not drop them", () => {
+  const stored = {
+    schemaVersion: 2,
+    recruiters: [
+      { id: "rec_ivonne", name: "Ivonne", office: "tempe" },
+      { id: "rec_alex", name: "Alex", office: "mesa" },
+    ],
+    orders: [
+      {
+        id: "still-open",
+        office: "mesa",
+        client: "Mesa Co",
+        position: "Picker",
+        payRate: "$18/hr",
+        shift: "Days",
+        openings: 4,
+        filled: 1,
+        recruiterId: "rec_alex",
+        dateOpened: "2026-11-10",
+        dateFilled: null,
+        notes: "Keep this open order",
+        logo: null,
+        example: false,
+        createdAt: "2026-11-10T15:00:00.000Z",
+        updatedAt: "2026-11-12T15:00:00.000Z",
+      },
+      {
+        id: "already-filled",
+        office: "tempe",
+        client: "State Seal",
+        position: "Machine Operator",
+        payRate: "$20/hr",
+        shift: "1st",
+        openings: 5,
+        filled: 5,
+        recruiterId: "rec_ivonne",
+        dateOpened: "2026-11-01",
+        dateFilled: "2026-11-02T18:00:00.000Z",
+        notes: "Keep me",
+        logo: null,
+        example: false,
+        createdAt: "2026-11-01T18:00:00.000Z",
+        updatedAt: "2026-11-02T18:00:00.000Z",
+      },
+    ],
+    fillEvents: [
+      {
+        id: "fill-1",
+        orderId: "already-filled",
+        office: "tempe",
+        recruiterId: "rec_ivonne",
+        at: "2026-11-02T18:00:00.000Z",
+      },
+    ],
+    celebrations: [],
+    updatedAt: "2026-11-12T15:00:00.000Z",
+  };
+  const loaded = normalizeState(stored);
+  assert.equal(loaded.orders.length, 2);
+  assert.equal(loaded.orders.find((order) => order.id === "still-open")?.notes, "Keep this open order");
+  assert.equal(loaded.orders.find((order) => order.id === "already-filled")?.filled, 5);
+  assert.equal(loaded.fillEvents.length, 1);
+
+  const timer = clock("2026-11-23T16:00:00.000Z");
+  const reopened = reopenOrder(loaded, "already-filled", timer);
+  assert.equal(reopened.state.orders.length, 3);
+  assert.equal(reopened.state.orders.find((order) => order.id === "still-open")?.filled, 1);
+  assert.equal(reopened.state.orders.find((order) => order.id === "still-open")?.dateFilled, null);
+  const original = reopened.state.orders.find((order) => order.id === "already-filled");
+  assert.equal(original?.filled, 5);
+  assert.equal(original?.dateFilled, "2026-11-02T18:00:00.000Z");
+  assert.equal(reopened.state.fillEvents.filter((event) => event.orderId === "already-filled").length, 1);
+  const copy = reopened.state.orders.find((order) => order.id !== "still-open" && order.id !== "already-filled");
+  assert.ok(copy);
+  assert.equal(copy.filled, 0);
+  assert.equal(copy.dateFilled, null);
+  assert.equal(copy.dateOpened, "2026-11-23");
+  assert.equal(copy.client, "State Seal");
+  assert.equal(copy.openings, 5);
+  assert.equal(reopened.state.fillEvents.some((event) => event.orderId === copy.id), false);
+  assert.equal(normalizeState(reopened.state).orders.length, 3);
 });
 
 test("a tie on the month score stays a tie", () => {
