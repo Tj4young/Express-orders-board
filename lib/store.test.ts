@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { mkdtemp, rm } from "fs/promises";
+import { mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import test from "node:test";
@@ -120,6 +120,57 @@ test("file storage keeps a logo added on edit and drops it only when the edit cl
     const after = await createFileRepository(path.join(dir, "board.json")).read();
     assert.equal(after.orders[0].logo, null);
     assert.equal(after.orders[0].position, "Warehouse");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("file storage round-trips notBilling on create, edit, and reopen, and old files stay false", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "express-board-"));
+  const file = path.join(dir, "board.json");
+  try {
+    const repo = createFileRepository(file);
+    const created = await repo.createOrder({ ...orderFields, client: "New Co", openings: 1, notBilling: true });
+    const id = created.state.orders.find((order) => order.client === "New Co")?.id;
+    assert.ok(id);
+    assert.equal(created.state.orders.find((order) => order.id === id)?.notBilling, true);
+
+    const reread = await createFileRepository(file).read();
+    assert.equal(reread.orders.find((order) => order.id === id)?.notBilling, true);
+
+    const cleared = await repo.updateOrder(id, { ...orderFields, client: "New Co", openings: 1, notBilling: false });
+    assert.equal(cleared.state.orders.find((order) => order.id === id)?.notBilling, false);
+    const flagged = await repo.updateOrder(id, { ...orderFields, client: "New Co", openings: 1, notBilling: true });
+    assert.equal(flagged.state.orders.find((order) => order.id === id)?.notBilling, true);
+
+    await repo.fill(id, "increment", "rec_ivonne");
+    const reopened = await repo.reopen(id);
+    assert.equal(reopened.celebration, null);
+    const copy = reopened.state.orders.find((order) => order.id !== id && order.client === "New Co");
+    assert.ok(copy);
+    assert.equal(copy.notBilling, true);
+    assert.equal(copy.filled, 0);
+    const disk = await createFileRepository(file).read();
+    assert.equal(disk.orders.find((order) => order.id === id)?.notBilling, true);
+    assert.equal(disk.orders.find((order) => order.id === copy.id)?.notBilling, true);
+    assert.equal(disk.fillEvents.every((event) => event.orderId === id), true);
+
+    const omitted = await repo.createOrder({ ...orderFields, client: "Legacy Co" });
+    const legacyId = omitted.state.orders.find((order) => order.client === "Legacy Co")?.id;
+    assert.ok(legacyId);
+    assert.equal(omitted.state.orders.find((order) => order.id === legacyId)?.notBilling, false);
+
+    const raw = JSON.parse(readFileSync(file, "utf8")) as { orders: Array<Record<string, unknown>> };
+    const legacy = raw.orders.find((order) => order.id === legacyId);
+    assert.ok(legacy);
+    delete legacy.notBilling;
+    await writeFile(file, JSON.stringify(raw), "utf8");
+    const migrated = await createFileRepository(file).read();
+    const restored = migrated.orders.find((order) => order.id === legacyId);
+    assert.ok(restored);
+    assert.equal(restored.notBilling, false);
+    assert.equal(restored.client, "Legacy Co");
+    assert.equal(migrated.orders.find((order) => order.id === id)?.notBilling, true);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

@@ -49,10 +49,11 @@ export function OrderCard({
   return (
     <article
       id={`order-${order.id}`}
-      className={`order-card${aging ? " is-aging" : ""}${order.example ? " is-example" : ""}${exiting ? " is-exiting" : ""}${targeted ? " is-targeted" : ""}`}
+      className={`order-card${aging ? " is-aging" : ""}${order.notBilling ? " is-not-billing" : ""}${order.example ? " is-example" : ""}${exiting ? " is-exiting" : ""}${targeted ? " is-targeted" : ""}`}
       data-testid="order-card"
       data-office={order.office}
       data-example={order.example ? "true" : "false"}
+      data-not-billing={order.notBilling ? "true" : "false"}
     >
       <div className="card-top">
         <div className="card-identity">
@@ -64,6 +65,7 @@ export function OrderCard({
           </div>
         </div>
         <div className="card-badges">
+          {order.notBilling && <span className="pill pill-not-billing">Not billing yet</span>}
           {order.example && <span className="pill pill-example">Example</span>}
           {aging && <span className="pill pill-aging">Aging · {days} days</span>}
         </div>
@@ -196,12 +198,17 @@ export function CompactOrder({
   const left = spotsLeft(order);
   const pct = order.openings === 0 ? 0 : Math.min(100, Math.round((order.filled / order.openings) * 100));
   return (
-    <article className={`compact-card${aging ? " is-aging" : ""}${order.example ? " is-example" : ""}`} data-testid="battle-order">
+    <article
+      className={`compact-card${aging ? " is-aging" : ""}${order.notBilling ? " is-not-billing" : ""}${order.example ? " is-example" : ""}`}
+      data-testid="battle-order"
+      data-not-billing={order.notBilling ? "true" : "false"}
+    >
       <div className="compact-top">
         <div className="compact-identity">
           <ClientLogo client={order.client} logo={order.logo} size={40} />
           <h3>{order.client}</h3>
         </div>
+        {order.notBilling && <span className="pill pill-not-billing">Not billing yet</span>}
         {order.example && <span className="pill pill-example">Example</span>}
         {aging && <span className="pill pill-aging">Aging · {days}d</span>}
       </div>

@@ -30,6 +30,11 @@ export type Order = {
   notes: string;
   /** Small data URL for the client's logo, or null. */
   logo: string | null;
+  /**
+   * True when we are not billing this company yet.
+   * Orders saved before this field existed are treated as false.
+   */
+  notBilling: boolean;
   /** True only for the optional labeled sample. Never seeded on its own. */
   example: boolean;
   createdAt: string;
@@ -99,6 +104,8 @@ export type OrderInput = {
   dateOpened: string;
   notes: string;
   logo: string | null;
+  /** Omitted means false, so older clients can still save an order. */
+  notBilling?: boolean;
 };
 
 export type RecruiterInput = {

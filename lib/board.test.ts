@@ -255,6 +255,7 @@ test("only one labeled example order can be added", () => {
   state = addExampleOrder(state, timer);
   assert.equal(state.orders.length, 1);
   assert.equal(state.orders[0].example, true);
+  assert.equal(state.orders[0].notBilling, false);
   assert.match(state.orders[0].client, /EXAMPLE/);
   assert.throws(() => addExampleOrder(state, timer), /already on the board/);
 });
@@ -272,6 +273,121 @@ test("future open dates are rejected", () => {
     () => parseOrderInput(input({ dateOpened: "2026-11-19" }), state.recruiters, NOW),
     /future/,
   );
+});
+
+test("notBilling defaults to false, round-trips on create and edit, and copies on reopen", () => {
+  const timer = clock();
+  const recruiters = createInitialState(NOW).recruiters;
+  const omitted = { ...input() };
+  delete omitted.notBilling;
+  assert.equal(parseOrderInput(omitted, recruiters, NOW).notBilling, false);
+  assert.equal(parseOrderInput(input({ notBilling: false }), recruiters, NOW).notBilling, false);
+  assert.equal(parseOrderInput(input({ notBilling: true }), recruiters, NOW).notBilling, true);
+  assert.throws(() => parseOrderInput({ ...input(), notBilling: "yes" }, recruiters, NOW), /Not billing yet/);
+
+  let state = createInitialState(NOW);
+  state = createOrder(state, input(), timer).state;
+  assert.equal(state.orders[0].notBilling, false);
+
+  state = createOrder(state, input({ client: "New Co", notBilling: true }), timer).state;
+  const created = state.orders.find((order) => order.client === "New Co");
+  assert.ok(created);
+  assert.equal(created.notBilling, true);
+
+  const cleared = updateOrder(state, created.id, input({ client: "New Co", notBilling: false }), timer);
+  assert.equal(cleared.state.orders.find((order) => order.id === created.id)?.notBilling, false);
+  const flagged = updateOrder(cleared.state, created.id, input({ client: "New Co", notBilling: true }), timer);
+  assert.equal(flagged.state.orders.find((order) => order.id === created.id)?.notBilling, true);
+
+  state = flagged.state;
+  state = fillOrder(state, created.id, "increment", timer, "rec_ivonne").state;
+  assert.equal(state.orders.find((order) => order.id === created.id)?.notBilling, true);
+  assert.equal(state.celebrations.at(-1)?.kind, "fill");
+
+  timer.stamp("2026-11-18T19:00:00.000Z");
+  state = fillOrder(state, created.id, "increment", timer, "rec_jane").state;
+  const beforeHeads = scoreBoard(state, new Date("2026-11-18T19:00:00.000Z")).tempe.monthHeads;
+  const reopened = reopenOrder(state, created.id, timer);
+  assert.equal(reopened.celebration, null);
+  const original = reopened.state.orders.find((order) => order.id === created.id);
+  const copy = reopened.state.orders.find((order) => order.id !== created.id && order.client === "New Co");
+  assert.equal(original?.notBilling, true);
+  assert.equal(copy?.notBilling, true);
+  assert.equal(copy?.filled, 0);
+  assert.equal(copy?.example, false);
+  assert.equal(scoreBoard(reopened.state, new Date("2026-11-18T19:00:00.000Z")).tempe.monthHeads, beforeHeads);
+
+  const roundTrip = normalizeState(reopened.state);
+  assert.equal(roundTrip.orders.find((order) => order.id === created.id)?.notBilling, true);
+  assert.equal(roundTrip.orders.find((order) => order.client === "New Co" && order.filled === 0)?.notBilling, true);
+});
+
+test("orders saved before notBilling existed stay off the highlight", () => {
+  const loaded = normalizeState({
+    schemaVersion: 2,
+    orders: [
+      {
+        id: "legacy",
+        office: "tempe",
+        client: "ACME",
+        position: "Welder",
+        payRate: "$20/hr",
+        shift: "Days",
+        openings: 1,
+        filled: 0,
+        recruiterId: "rec_ivonne",
+        dateOpened: "2026-11-01",
+        dateFilled: null,
+        notes: "",
+        logo: null,
+        example: false,
+        createdAt: "2026-11-01T18:00:00.000Z",
+        updatedAt: "2026-11-01T18:00:00.000Z",
+      },
+      {
+        id: "flagged",
+        office: "mesa",
+        client: "State Seal",
+        position: "Picker",
+        payRate: "$18/hr",
+        shift: "Nights",
+        openings: 2,
+        filled: 0,
+        recruiterId: "rec_alex",
+        dateOpened: "2026-11-02",
+        dateFilled: null,
+        notes: "",
+        logo: null,
+        notBilling: true,
+        example: false,
+        createdAt: "2026-11-02T18:00:00.000Z",
+        updatedAt: "2026-11-02T18:00:00.000Z",
+      },
+      {
+        id: "junk",
+        office: "tempe",
+        client: "Avnet",
+        position: "Buyer",
+        payRate: "$21/hr",
+        shift: "Days",
+        openings: 1,
+        filled: 0,
+        recruiterId: "rec_ivonne",
+        dateOpened: "2026-11-03",
+        dateFilled: null,
+        notes: "",
+        logo: null,
+        notBilling: "yes",
+        example: false,
+        createdAt: "2026-11-03T18:00:00.000Z",
+        updatedAt: "2026-11-03T18:00:00.000Z",
+      },
+    ],
+  });
+  assert.equal(loaded.orders.find((order) => order.id === "legacy")?.notBilling, false);
+  assert.equal(loaded.orders.find((order) => order.id === "flagged")?.notBilling, true);
+  assert.equal(loaded.orders.find((order) => order.id === "junk")?.notBilling, false);
+  assert.equal(loaded.orders.find((order) => order.id === "legacy")?.client, "ACME");
 });
 
 test("every fill celebrates who placed it, and undo does not", () => {
@@ -724,6 +840,7 @@ test("normalizeState keeps current open and filled orders, and reopen does not d
   assert.equal(loaded.schemaVersion, 2);
   assert.equal(loaded.orders.length, 2);
   assert.equal(loaded.orders.find((order) => order.id === "still-open")?.notes, "Keep this open order");
+  assert.equal(loaded.orders.find((order) => order.id === "still-open")?.notBilling, false);
   assert.equal(loaded.orders.find((order) => order.id === "still-open")?.competitorFilledAt, null);
   assert.equal(loaded.orders.find((order) => order.id === "already-filled")?.filled, 5);
   assert.equal(loaded.orders.find((order) => order.id === "already-filled")?.competitorFilledAt, null);
@@ -746,6 +863,7 @@ test("normalizeState keeps current open and filled orders, and reopen does not d
   assert.equal(copy.dateOpened, "2026-11-23");
   assert.equal(copy.client, "State Seal");
   assert.equal(copy.openings, 5);
+  assert.equal(copy.notBilling, false);
   assert.equal(reopened.state.fillEvents.some((event) => event.orderId === copy.id), false);
   assert.equal(normalizeState(reopened.state).orders.length, 3);
 });

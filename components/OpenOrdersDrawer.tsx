@@ -80,10 +80,11 @@ export function OpenOrdersDrawer({
             {sorted.map((order) => (
               <li key={order.id}>
                 <button
-                  className="orders-jump"
+                  className={`orders-jump${order.notBilling ? " is-not-billing" : ""}`}
                   type="button"
                   data-testid="open-order-jump"
                   data-office={order.office}
+                  data-not-billing={order.notBilling ? "true" : "false"}
                   data-current={order.office === currentOffice ? "true" : "false"}
                   onClick={() => {
                     setOpen(false);
@@ -94,6 +95,7 @@ export function OpenOrdersDrawer({
                   <span className="orders-jump-copy">
                     <strong>{order.client}</strong>
                     <span>{order.position}</span>
+                    {order.notBilling && <span className="pill pill-not-billing">Not billing yet</span>}
                   </span>
                   <span className="orders-jump-count" aria-label={`${order.filled} of ${order.openings} filled`}>
                     {order.filled}/{order.openings}
