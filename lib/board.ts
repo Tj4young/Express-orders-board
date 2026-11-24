@@ -60,6 +60,13 @@ function text(value: unknown, label: string, max: number, required: boolean): st
   return trimmed;
 }
 
+/** Missing or false stays false. Anything else is a bad request, not a silent yes. */
+function optionalFlag(value: unknown, label: string): boolean {
+  if (value === undefined || value === null || value === false) return false;
+  if (value === true) return true;
+  throw new BoardError(`${label} needs to be yes or no.`);
+}
+
 function wholeNumber(value: unknown, label: string, min: number, max: number): number {
   const number = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   if (!Number.isInteger(number) || number < min || number > max) {
@@ -101,6 +108,7 @@ export function parseOrderInput(body: unknown, recruiters: Recruiter[], now: Dat
     dateOpened,
     notes: text(raw.notes, "Notes", 500, false),
     logo,
+    notBilling: optionalFlag(raw.notBilling, "Not billing yet"),
   };
 }
 
@@ -266,6 +274,7 @@ export function createOrder(state: BoardState, input: OrderInput, clock: Clock):
   const order: Order = {
     id: clock.id(),
     ...input,
+    notBilling: input.notBilling === true,
     dateFilled: null,
     competitorFilledAt: null,
     example: false,
@@ -305,6 +314,7 @@ export function updateOrder(state: BoardState, orderId: string, input: OrderInpu
   order.dateOpened = input.dateOpened;
   order.notes = input.notes;
   order.logo = input.logo;
+  order.notBilling = input.notBilling === true;
   order.updatedAt = clock.now.toISOString();
   const added = syncFills(next, order, clock.now, clock.id);
   const celebration = settleCelebrations(
@@ -407,6 +417,7 @@ export function reopenOrder(state: BoardState, orderId: string, clock: Clock): M
     competitorFilledAt: null,
     notes: source.notes,
     logo: source.logo,
+    notBilling: source.notBilling === true,
     example: false,
     createdAt: nowIso,
     updatedAt: nowIso,
@@ -556,6 +567,7 @@ export function normalizeState(value: unknown): BoardState {
     ...order,
     logo: isSafeLogo(order.logo) ? order.logo : null,
     competitorFilledAt: normalizeCompetitorFilledAt(order.competitorFilledAt),
+    notBilling: order.notBilling === true,
   }));
   let fillEvents = Array.isArray(raw.fillEvents) ? raw.fillEvents : [];
   if (raw.schemaVersion !== 2) {

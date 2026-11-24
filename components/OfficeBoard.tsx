@@ -145,6 +145,7 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
   const spots = active.reduce((sum, order) => sum + spotsLeft(order), 0);
   const lostCount = state ? state.orders.filter((order) => order.office === office && isLostOrder(order)).length : 0;
   const agingCount = today ? active.filter((order) => today && order.dateOpened <= addDaysSafe(today, -14)).length : 0;
+  const notBillingCount = active.filter((order) => order.notBilling).length;
 
   const nameFor = (id: string) => state?.recruiters.find((person) => person.id === id)?.name ?? "Unassigned";
   const visible = [
@@ -216,6 +217,13 @@ export function OfficeBoard({ office }: { office: OfficeId }) {
           <article className={`stat${agingCount > 0 ? " is-aging" : ""}`}>
             <strong>{today ? agingCount : "—"}</strong>
             <span>Aging 14+ days</span>
+          </article>
+          <article
+            className={`stat${notBillingCount > 0 ? " is-not-billing" : ""}`}
+            data-testid="not-billing-count"
+          >
+            <strong>{notBillingCount}</strong>
+            <span>Not billing yet</span>
           </article>
           <Link
             className={`stat stat-link${lostCount > 0 ? " has-lost" : ""}`}

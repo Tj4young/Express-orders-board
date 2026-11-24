@@ -144,11 +144,15 @@ export function BattleView() {
                     ),
                     sort,
                   );
+                  const notBilling = orders.filter((order) => order.notBilling).length;
                   return (
                     <div key={office} className={`battle-column battle-${office}`}>
                       <header>
                         <h2>{OFFICES[office].name}</h2>
-                        <span>{orders.length} open</span>
+                        <span>
+                          {orders.length} open
+                          {notBilling > 0 && <strong className="battle-not-billing"> · {notBilling} not billing</strong>}
+                        </span>
                       </header>
                       <div className="battle-scroll">
                         {orders.length === 0 ? (

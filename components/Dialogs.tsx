@@ -116,6 +116,7 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
   );
   const [dateOpened, setDateOpened] = useState(order?.dateOpened ?? formatPhoenixISODate(new Date()));
   const [notes, setNotes] = useState(order?.notes ?? "");
+  const [notBilling, setNotBilling] = useState(order?.notBilling === true);
   const [logo, setLogo] = useState<string | null>(order?.logo ?? null);
   const [preparingLogo, setPreparingLogo] = useState(false);
   const [logoError, setLogoError] = useState("");
@@ -148,6 +149,7 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
       dateOpened,
       notes,
       logo,
+      notBilling,
     };
     setBusy(true);
     setError("");
@@ -176,6 +178,18 @@ function OrderForm({ order, office }: { order: Order | null; office: OfficeId })
         </p>
       )}
       <div className="form-grid">
+        <label className="check-field">
+          <input
+            type="checkbox"
+            checked={notBilling}
+            data-testid="not-billing-toggle"
+            onChange={(event) => setNotBilling(event.target.checked)}
+          />
+          <span>
+            <strong>Not billing yet</strong>
+            <small>This company is not on billing. The card stays highlighted until you turn this off.</small>
+          </span>
+        </label>
         <label className="field">
           Office
           <select value={formOffice} onChange={(event) => setFormOffice(event.target.value as OfficeId)}>
